@@ -2,7 +2,6 @@
 
 #include <lvgl.h>
 #include <stdint.h>
-#include "../display.hpp"
 #include <new>
 #include <functional>
 #include "osal/lv_os.h"
@@ -18,7 +17,7 @@ public:
 
 class TextWidget : public IWidget {
 public:
-    TextWidget(lv_obj_t * lv_text_obj, const char * format, float * p_value, uint8_t _precision = 0, float _scalar = 1.0f, float _offset = 0) :
+    TextWidget(lv_obj_t * lv_text_obj, const char * format, float * p_value, uint8_t _precision = 0, float scalar = 1.0f, float offset = 0) :
         o_value(p_value, scalar, offset),
         lv_text_obj(lv_text_obj),
         format(format),
@@ -30,7 +29,7 @@ public:
     virtual ~TextWidget() override = default;
 
     virtual void update(void) override {
-        if (o_value!) {
+        if (o_value.hasChanged()) {
             lv_label_set_text_fmt(lv_text_obj, format, *o_value);
         }
     }

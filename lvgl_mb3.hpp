@@ -1,4 +1,5 @@
 #include <lvgl.h>
+#include <functional>
 
 inline void lv_vector_path_move_to(lv_vector_path_t *path, lv_fpoint_t p) {
     lv_vector_path_move_to(path, &p);

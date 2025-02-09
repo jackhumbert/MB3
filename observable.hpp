@@ -23,8 +23,8 @@ protected:
 class ObservableManager {
 public:
     template <typename T>
-    static void add(std::shared_ptr<IObservable> observable) {
-        _observables.push_back(observable);
+    static void add(T * observable) {
+        _observables.push_back(std::unique_ptr<T>(observable));
     }
 
     inline static void update() {
@@ -33,14 +33,14 @@ public:
         }
     }
 
-    static std::vector<std::shared_ptr<IObservable>> _observables;
+    static std::vector<std::unique_ptr<IObservable>> _observables;
 };
 
 template <typename T>
 class TObservable : public IObservable {
 public:
     TObservable(T * p_value) : p_value(p_value) {
-        ObservableManager::add(std::make_shared<TObservable<T>>(this));
+        ObservableManager::add(this);
         update();
     }
 
@@ -56,12 +56,8 @@ public:
         return input;
     }
 
-    T& operator*() const {
+    T& operator*() {
         return displayValue;
-    }
-
-    bool operator!(int _) {
-        return hasChanged();
     }
 
     // virtual void construct(const lv_obj_class_t * cls);
@@ -79,9 +75,11 @@ public:
 
 template <typename T>
 class TAdjustedObservable : public TObservable<T> {
+public:
     TAdjustedObservable(T * p_value, T scalar, T offset) : scalar(scalar), offset(offset), TObservable<T>(p_value) {
     
     }
+    virtual ~TAdjustedObservable() override = default;
 
     virtual T computeDisplayValue(T input) override {
         return (input * scalar) + offset;

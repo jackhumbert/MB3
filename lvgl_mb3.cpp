@@ -1,4 +1,5 @@
-#include "lvgl_bb.hpp"
+#include "lvgl_mb3.hpp"
+#include <src/widgets/canvas/lv_canvas_private.h>
 
 void clearCanvas(lv_obj_t * obj) {
     lv_canvas_t * canvas = (lv_canvas_t *)obj;

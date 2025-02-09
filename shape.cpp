@@ -1,4 +1,6 @@
 #include "shape.hpp"
+#include <functional>
+#include "lvgl_mb3.hpp"
 
 Shape::Shape(lv_layer_t * layer) {
     dsc = lv_vector_dsc_create(layer);

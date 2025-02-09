@@ -1,5 +1,4 @@
 #include "widget.hpp"
-#include <src/widgets/canvas/lv_canvas_private.h>
 
 // IWidget::~IWidget() {
 //     // if (root) {
