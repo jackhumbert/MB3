@@ -36,7 +36,7 @@ public:
     static std::vector<std::unique_ptr<IObservable>> _observables;
 };
 
-template <typename T>
+template <typename T, typename D = T>
 class TObservable : public IObservable {
 public:
     TObservable(T * p_value) : p_value(p_value) {
@@ -52,11 +52,11 @@ public:
         displayValue = newValue;
     }
 
-    virtual T computeDisplayValue(T input) {
+    virtual D computeDisplayValue(T input) {
         return input;
     }
 
-    T& operator*() {
+    D& operator*() {
         return displayValue;
     }
 
@@ -70,21 +70,21 @@ public:
     // static void event_cb(const lv_obj_class_t * cls, lv_event_t * event);
 
     T * p_value;
-    T displayValue;
+    D displayValue;
 };
 
-template <typename T>
-class TAdjustedObservable : public TObservable<T> {
+template <typename T, typename D = T>
+class TAdjustedObservable : public TObservable<T, D> {
 public:
-    TAdjustedObservable(T * p_value, T scalar, T offset) : scalar(scalar), offset(offset), TObservable<T>(p_value) {
+    TAdjustedObservable(T * p_value, D scalar, D offset) : scalar(scalar), offset(offset), TObservable<T, D>(p_value) {
     
     }
     virtual ~TAdjustedObservable() override = default;
 
-    virtual T computeDisplayValue(T input) override {
+    virtual D computeDisplayValue(T input) override {
         return (input * scalar) + offset;
     }
 
-    T scalar;
-    T offset;
+    D scalar;
+    D offset;
 };
