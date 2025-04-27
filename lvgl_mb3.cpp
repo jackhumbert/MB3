@@ -13,15 +13,55 @@ void clearCanvas(lv_obj_t * obj) {
     uint32_t stride = header->stride;
     uint8_t * data = draw_buf->data;
 
-    if (header->cf == LV_COLOR_FORMAT_XRGB8888 || header->cf == LV_COLOR_FORMAT_ARGB8888) {
-        for (y = 0; y < header->h; y++) {
+    // if (header->cf == LV_COLOR_FORMAT_XRGB8888 || header->cf == LV_COLOR_FORMAT_ARGB8888) {
+    //     for (y = 0; y < header->h; y++) {
+    //         uint32_t * buf32 = (uint32_t *)(data + y * stride);
+    //         for(x = 0; x < header->w; x++) {
+    //             buf32[x] = 0;
+    //         }
+    //     }
+    // } else if (header->cf == LV_COLOR_FORMAT_RGB888) {
+    //     for (y = 0; y < header->h; y++) {
+    //         uint8_t * buf8 = (uint8_t *)(data + y * stride);
+    //         for(x = 0; x < header->w * 3; x += 3) {
+    //             buf8[x + 0] = 0;
+    //             buf8[x + 1] = 0;
+    //             buf8[x + 2] = 0;
+    //         }
+    //     }
+    // } else if (header->cf == LV_COLOR_FORMAT_L8) {
+    //     for (y = 0; y < header->h; y++) {
+    //         uint8_t * buf = (uint8_t *)(data + y * stride);
+    //         for(x = 0; x < header->w; x++) {
+    //             buf[x] = 0;
+    //         }
+    //     }
+    // }
+
+
+    if(header->cf == LV_COLOR_FORMAT_RGB565) {
+        for(y = 0; y < header->h; y++) {
+            uint16_t * buf16 = (uint16_t *)(data + y * stride);
+            for(x = 0; x < header->w; x++) {
+                buf16[x] = 0;
+            }
+        }
+    }
+    else if(header->cf == LV_COLOR_FORMAT_XRGB8888 || header->cf == LV_COLOR_FORMAT_ARGB8888) {
+        uint32_t c32 = 0;
+        if(header->cf == LV_COLOR_FORMAT_ARGB8888) {
+            c32 &= 0x00ffffff;
+            c32 |= (uint32_t)0 << 24;
+        }
+        for(y = 0; y < header->h; y++) {
             uint32_t * buf32 = (uint32_t *)(data + y * stride);
             for(x = 0; x < header->w; x++) {
                 buf32[x] = 0;
             }
         }
-    } else if (header->cf == LV_COLOR_FORMAT_RGB888) {
-        for (y = 0; y < header->h; y++) {
+    }
+    else if(header->cf == LV_COLOR_FORMAT_RGB888) {
+        for(y = 0; y < header->h; y++) {
             uint8_t * buf8 = (uint8_t *)(data + y * stride);
             for(x = 0; x < header->w * 3; x += 3) {
                 buf8[x + 0] = 0;
@@ -29,14 +69,38 @@ void clearCanvas(lv_obj_t * obj) {
                 buf8[x + 2] = 0;
             }
         }
-    } else if (header->cf == LV_COLOR_FORMAT_L8) {
-        for (y = 0; y < header->h; y++) {
+    }
+    else if(header->cf == LV_COLOR_FORMAT_L8) {
+        uint8_t c8 = 0;
+        for(y = 0; y < header->h; y++) {
             uint8_t * buf = (uint8_t *)(data + y * stride);
             for(x = 0; x < header->w; x++) {
-                buf[x] = 0;
+                buf[x] = c8;
             }
         }
     }
+    else if(header->cf == LV_COLOR_FORMAT_AL88) {
+        lv_color16a_t c;
+        c.lumi = 0;
+        c.alpha = 255;
+        for(y = 0; y < header->h; y++) {
+            lv_color16a_t * buf = (lv_color16a_t *)(data + y * stride);
+            for(x = 0; x < header->w; x++) {
+                buf[x] = c;
+            }
+        }
+    }
+
+    else {
+        for(y = 0; y < header->h; y++) {
+            for(x = 0; x < header->w; x++) {
+                lv_canvas_set_px(obj, x, y, lv_color_black(), 0);
+            }
+        }
+    }
+
+
+
 }
 
 void queueCanvasLayerDraw(lv_obj_t * obj, lv_layer_t * layer) {
