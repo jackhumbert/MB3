@@ -14,7 +14,7 @@ inline void lv_vector_path_cubic_to(lv_vector_path_t *path, lv_fpoint_t p1, lv_f
 }
 
 // lv_canvas_fill_bg(banner_draw, COLOR_BLACK, LV_OPA_0) without invalidate
-void clearCanvas(lv_obj_t * obj);
+void clearCanvas(lv_obj_t * obj, int min_y = 0, int max_y = -1);
 // lv_canvas_finish_layer(obj, layer) without invalidate
 void queueCanvasLayerDraw(lv_obj_t * obj, lv_layer_t * layer);
 

@@ -46,8 +46,10 @@ public:
 
     virtual ~TObservable() override = default;
 
+    D newValue;
+
     virtual void update() override {
-        auto newValue = computeDisplayValue(*p_value);
+        newValue = computeDisplayValue(*p_value);
         _hasChanged = displayValue != newValue;
         displayValue = newValue;
     }
@@ -70,7 +72,7 @@ public:
     // static void event_cb(const lv_obj_class_t * cls, lv_event_t * event);
 
     T * p_value;
-    D displayValue;
+    D displayValue = 0;
 };
 
 template <typename T, typename D = T>
