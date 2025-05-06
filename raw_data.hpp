@@ -27,6 +27,7 @@ public:
     virtual uint8_t command() = 0;
     virtual uint8_t * data() = 0;
     virtual void members() = 0;
+    virtual const std::string& name() = 0;
 };
 
 template<typename T>
@@ -38,6 +39,7 @@ protected:
     uint8_t _command = 0xFF;
     uint8_t * _data = nullptr;
     std::vector<std::shared_ptr<IUpdatable>> _members;
+    std::string _name;
 
 public:
     template <size_t Size>
@@ -79,7 +81,7 @@ public:
         }
     };
 
-    RawData(uint8_t command) : _command(command) {
+    RawData(const std::string& str, uint8_t command) : _name(str), _command(command) {
         // log("RawData()");
     }
 
@@ -101,6 +103,7 @@ public:
             } else {
                 // log("Adding %s", member->name.c_str());
             }
+            member->name = _name + "->" + member->name;
             pos += member->size();
             _members.emplace_back(member);
         }
@@ -155,6 +158,9 @@ public:
         //     log("* %02X: %s", member->offset, member->name.c_str());
         // }
     }
-
+    
+    virtual const std::string& name() {
+        return _name;
+    }
 
 };
