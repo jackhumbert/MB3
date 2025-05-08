@@ -6,6 +6,9 @@
 #include <esp_heap_caps.h>
 #include "log.hpp"
 #include <string>
+#include <functional>
+
+#define BYTE_CEILING(b) (((b - 1) / 8) + 1)
 
 class IUpdatable {
 public:
@@ -15,9 +18,11 @@ public:
 
     virtual size_t size() = 0;
     virtual void update(uint64_t new_value) = 0;
+    // virtual void * get() = 0;
 
     size_t offset = 0;
     std::string name;
+    bool changed = false;
 };
 
 class IRawData {
@@ -32,6 +37,7 @@ public:
 
 template<typename T>
 class RawData : public IRawData {
+    using RawDataCallbackType = std::function<void(T&)>;
 protected:
     static inline std::vector<std::shared_ptr<IUpdatable>> __members;
 
@@ -40,13 +46,14 @@ protected:
     uint8_t * _data = nullptr;
     std::vector<std::shared_ptr<IUpdatable>> _members;
     std::string _name;
+    bool allocated = false;
 
 public:
-    template <size_t Size>
+    template <size_t Size, typename Type = uint32_t>
     class Updatable : public IUpdatable {
-        static constexpr size_t __size = Size;
-        uint8_t _raw[((Size - 1) / 8) + 1];
     public:
+        using UpdatableCallbackType = std::function<void(Updatable&)>;
+
         Updatable() {
             // log("Updatable()");
             // T::Updatable?
@@ -62,11 +69,20 @@ public:
             return __size;
         }
 
+        Type& operator*() {
+            return *(Type*)_raw;
+        }
+
+        // virtual void * get() {
+        //     return _raw;
+        // }
+
         virtual void update(uint64_t new_value) {
             if (__size <= 8) {
                 auto _new_value = (uint8_t)new_value;
                 auto value = *(uint8_t*)_raw;
                 if (_new_value != value) {
+                    changed = true;
                     *(uint8_t*)_raw = _new_value;
                     blog("%s updated: %02X", name.c_str(), _raw[0]);
                 }
@@ -74,23 +90,30 @@ public:
                 auto _new_value = (uint16_t)new_value;
                 auto value = *(uint16_t*)_raw;
                 if (_new_value != value) {
+                    changed = true;
                     *(uint16_t*)_raw = _new_value;
                     blog("%s updated: %02X %02X", name.c_str(), _raw[0], _raw[1]);
                 }
             }
+            if (changed) {
+                for (auto const & callback : callbacks) {
+                    callback(*this);
+                }
+            }
         }
+
+        std::vector<UpdatableCallbackType> callbacks;
+
+    private:
+        static constexpr size_t __size = Size;
+        uint8_t _raw[BYTE_CEILING(Size)];
     };
 
     RawData(const std::string& str, uint8_t command) : _name(str), _command(command) {
         // log("RawData()");
     }
 
-    ~RawData() {
-        // log("~RawData()");
-        free(_data);
-    }
-
-    inline void init() {
+    inline std::shared_ptr<IRawData> init() {
         // log("init()");
         size_t pos = 0;
         for (auto & member : __members) {
@@ -108,7 +131,10 @@ public:
             _members.emplace_back(member);
         }
         _size = pos;
-        _data = (uint8_t*)heap_caps_calloc(1, ((_size - 1) / 8) + 1, MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
+        _data = (uint8_t*)heap_caps_calloc(1, BYTE_CEILING(_size), MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
+        if (_data != nullptr)
+            allocated = true;
+        return std::shared_ptr<IRawData>(this);
     }
 
     virtual void update() {
@@ -138,10 +164,16 @@ public:
                 member->update((*(uint64_t*)p_byte >> bit_off) & ((1UL << mem_size) - 1));
             }
         }
+        for (const auto & callback : callbacks) {
+            callback(*(T*)this);
+        }
+        for (auto & member : _members) {
+            member->changed = false;
+        }
     }
 
     virtual size_t size() {
-        return ((_size - 1) / 8) + 1;
+        return BYTE_CEILING(_size);
     }
 
     virtual uint8_t command() {
@@ -163,4 +195,13 @@ public:
         return _name;
     }
 
+    std::vector<RawDataCallbackType> callbacks;
+
+private:
+    // ~RawData() {
+    //     // log("~RawData()");
+    //     if (allocated) {
+    //         free(_data);
+    //     }
+    // }
 };
