@@ -84,7 +84,7 @@ public:
                 if (_new_value != value) {
                     changed = true;
                     *(uint8_t*)_raw = _new_value;
-                    blog("%s updated: %02X", name.c_str(), _raw[0]);
+                    // blog("%s updated: %02X", name.c_str(), _raw[0]);
                 }
             } else if (__size <= 16) {
                 auto _new_value = (uint16_t)new_value;
@@ -92,7 +92,7 @@ public:
                 if (_new_value != value) {
                     changed = true;
                     *(uint16_t*)_raw = _new_value;
-                    blog("%s updated: %02X %02X", name.c_str(), _raw[0], _raw[1]);
+                    // blog("%s updated: %02X %02X", name.c_str(), _raw[0], _raw[1]);
                 }
             }
             if (changed) {
