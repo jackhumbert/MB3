@@ -29,7 +29,7 @@ class IRawData {
 public:
     virtual void update() = 0;
     virtual size_t size() = 0;
-    virtual uint8_t command() = 0;
+    virtual uint32_t id() = 0;
     virtual uint8_t * data() = 0;
     virtual void members() = 0;
     virtual const std::string& name() = 0;
@@ -42,22 +42,27 @@ protected:
     static inline std::vector<std::shared_ptr<IUpdatable>> __members;
 
     size_t _size = 0;
-    uint8_t _command = 0xFF;
+    uint32_t _id = 0xFFFFFFFF;
     uint8_t * _data = nullptr;
     std::vector<std::shared_ptr<IUpdatable>> _members;
     std::string _name;
     bool allocated = false;
 
 public:
-    template <size_t Size, typename Type = uint32_t>
+
+
+    template <typename Type = uint8_t>
     class Updatable : public IUpdatable {
     public:
         using UpdatableCallbackType = std::function<void(Updatable&)>;
 
-        Updatable() {
-            // log("Updatable()");
+        Updatable(size_t size = 1, float scale = 1.0, float offset = 0.0) : __size(size), _scale(scale), _offset(offset) {
             // T::Updatable?
             __members.push_back(std::shared_ptr<Updatable>(this));
+            _raw = (uint8_t*)heap_caps_calloc(1, BYTE_CEILING(size), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            if (_raw == nullptr) {
+                log("Error allocating %d bytes", BYTE_CEILING(size));
+            }
         }
 
         Updatable(const std::string& str) : Updatable() {
@@ -65,12 +70,22 @@ public:
             name = str;
         }
 
+        // ~Updatable() {
+        //     if (_raw) {
+        //         free(_raw);
+        //     }
+        // }
+
         virtual size_t size() {
             return __size;
         }
 
         Type& operator*() {
             return *(Type*)_raw;
+        }
+
+        float apply() {
+            return ((*(Type*)_raw) * _scale) + _offset;
         }
 
         // virtual void * get() {
@@ -94,6 +109,22 @@ public:
                     *(uint16_t*)_raw = _new_value;
                     // blog("%s updated: %02X %02X", name.c_str(), _raw[0], _raw[1]);
                 }
+            } else if (__size <= 24) {
+                auto _new_value = (uint32_t)new_value;
+                auto value = *(uint32_t*)_raw;
+                if (_new_value != value) {
+                    changed = true;
+                    *(uint32_t*)_raw = _new_value;
+                    // blog("%s updated: %02X %02X %02X", name.c_str(), _raw[0], _raw[1], _raw[2]);
+                }
+            } else if (__size <= 32) {
+                auto _new_value = (uint32_t)new_value;
+                auto value = *(uint32_t*)_raw;
+                if (_new_value != value) {
+                    changed = true;
+                    *(uint32_t*)_raw = _new_value;
+                    // blog("%s updated: %02X %02X %02X", name.c_str(), _raw[0], _raw[1], _raw[2]);
+                }
             }
             if (changed) {
                 for (auto const & callback : callbacks) {
@@ -105,11 +136,15 @@ public:
         std::vector<UpdatableCallbackType> callbacks;
 
     private:
-        static constexpr size_t __size = Size;
-        uint8_t _raw[BYTE_CEILING(Size)];
+        // static constexpr size_t __size = Size;
+        size_t __size;
+        // uint8_t _raw[BYTE_CEILING(Size)];
+        uint8_t * _raw = nullptr;
+        float _scale = 1.0;
+        float _offset = 0.0;
     };
 
-    RawData(const std::string& str, uint8_t command) : _name(str), _command(command) {
+    RawData(const std::string& str, uint32_t id) : _name(str), _id(id) {
         // log("RawData()");
     }
 
@@ -134,6 +169,9 @@ public:
         _data = (uint8_t*)heap_caps_calloc(1, BYTE_CEILING(_size), MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
         if (_data != nullptr)
             allocated = true;
+        else {
+            log("Error allocating %s", _name.c_str());
+        }
         return std::shared_ptr<IRawData>(this);
     }
 
@@ -176,8 +214,8 @@ public:
         return BYTE_CEILING(_size);
     }
 
-    virtual uint8_t command() {
-        return _command;
+    virtual uint32_t id() {
+        return _id;
     }
 
     virtual uint8_t * data() {
@@ -185,10 +223,10 @@ public:
     }
 
     virtual void members() {
-        // log("%d members", _members.size());
-        // for (auto const & member : _members) {
-        //     log("* %02X: %s", member->offset, member->name.c_str());
-        // }
+        log("%d members", _members.size());
+        for (auto const & member : _members) {
+            log("* %02X: %s", member->offset, member->name.c_str());
+        }
     }
     
     virtual const std::string& name() {
