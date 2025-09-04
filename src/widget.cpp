@@ -1,4 +1,4 @@
-#include "widget.hpp"
+#include <mb3/widget.hpp>
 
 // IWidget::~IWidget() {
 //     // if (root) {

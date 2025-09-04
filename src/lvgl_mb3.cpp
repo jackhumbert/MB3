@@ -1,4 +1,4 @@
-#include "lvgl_mb3.hpp"
+#include <mb3/lvgl_mb3.hpp>
 #include <src/widgets/canvas/lv_canvas_private.h>
 
 void clearCanvas(lv_obj_t * obj, int min_y, int max_y) {
