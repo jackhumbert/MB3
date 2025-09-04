@@ -61,7 +61,7 @@ public:
             __members.push_back(std::shared_ptr<Updatable>(this));
             _raw = (uint8_t*)heap_caps_calloc(1, BYTE_CEILING(size), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
             if (_raw == nullptr) {
-                log("Error allocating %d bytes", BYTE_CEILING(size));
+                log_e("Error allocating %d bytes", BYTE_CEILING(size));
             }
         }
 
@@ -170,7 +170,7 @@ public:
         if (_data != nullptr)
             allocated = true;
         else {
-            log("Error allocating %s", _name.c_str());
+            log_e("Error allocating %s", _name.c_str());
         }
         return std::shared_ptr<IRawData>(this);
     }
@@ -223,9 +223,9 @@ public:
     }
 
     virtual void members() {
-        log("%d members", _members.size());
+        log_d("%d members", _members.size());
         for (auto const & member : _members) {
-            log("* %02X: %s", member->offset, member->name.c_str());
+            log_d("* %02X: %s", member->offset, member->name.c_str());
         }
     }
     
