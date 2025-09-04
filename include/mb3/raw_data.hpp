@@ -4,7 +4,7 @@
 #include <vector>
 #include <memory>
 #include <esp_heap_caps.h>
-#include "log.hpp"
+// #include "log.hpp"
 #include <string>
 #include <functional>
 
