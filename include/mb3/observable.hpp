@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 
+/// @brief The base observable interface
 class IObservable {
 public:
     virtual ~IObservable() = default;
@@ -36,17 +37,23 @@ public:
     static std::vector<std::unique_ptr<IObservable>> _observables;
 };
 
-template <typename T, typename D = T>
+/// @brief A variable manager that can be bound to a pointer
+/// @tparam D The primitive display type for formatting, math
+/// @tparam T The optional smart type @ref IUpdatable
+template <typename D, typename T = D>
 class TObservable : public IObservable {
 public:
-    TObservable(T * p_value) : p_value(p_value) {
+    using DisplayType = D;
+    using DataType = T;
+
+    TObservable(DataType * p_value) : p_value(p_value) {
         ObservableManager::add(this);
         update();
     }
 
     virtual ~TObservable() override = default;
 
-    D newValue;
+    DisplayType newValue;
 
     virtual void update() override {
         newValue = computeDisplayValue(*p_value);
@@ -54,36 +61,31 @@ public:
         displayValue = newValue;
     }
 
-    virtual D computeDisplayValue(T input) {
+    virtual DisplayType computeDisplayValue(DisplayType input) {
         return input;
     }
 
-    D& operator*() {
+    DisplayType& operator*() {
         return displayValue;
     }
 
-    // virtual void construct(const lv_obj_class_t * cls);
-    // virtual void destruct(const lv_obj_class_t * cls);
-    // virtual void event(const lv_obj_class_t * cls, lv_event_t * event);
+    DisplayType get() const {
+        return displayValue;
+    }
 
-    // static Observable * create(lv_obj_t * parent);
-    // static void construct_cb(const lv_obj_class_t * cls, lv_obj_t * obj);
-    // static void destruct_cb(const lv_obj_class_t * cls, lv_obj_t * obj);
-    // static void event_cb(const lv_obj_class_t * cls, lv_event_t * event);
-
-    T * p_value;
-    D displayValue = 0;
+    DataType * p_value;
+    DisplayType displayValue = 0;
 };
 
-template <typename T, typename D = T>
-class TAdjustedObservable : public TObservable<T, D> {
+template <typename D, typename T = D>
+class TAdjustedObservable : public TObservable<D, T> {
 public:
-    TAdjustedObservable(T * p_value, D scalar, D offset) : scalar(scalar), offset(offset), TObservable<T, D>(p_value) {
+    TAdjustedObservable(T * p_value, D scalar, D offset) : scalar(scalar), offset(offset), TObservable<D, T>(p_value) {
     
     }
     virtual ~TAdjustedObservable() override = default;
 
-    virtual D computeDisplayValue(T input) override {
+    virtual D computeDisplayValue(D input) override {
         return (input * scalar) + offset;
     }
 

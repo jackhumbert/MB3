@@ -4,7 +4,7 @@
 #include <vector>
 #include <memory>
 #include <esp_heap_caps.h>
-// #include "log.hpp"
+#include <esp32-hal-log.h>
 #include <string>
 #include <functional>
 
@@ -12,6 +12,7 @@
 
 class IRawData;
 
+/// @brief The base updatable interface
 class IUpdatable {
 public:
     IUpdatable() {
@@ -21,6 +22,7 @@ public:
     virtual size_t size() = 0;
     virtual void update(uint64_t new_value) = 0;
     virtual void * get_raw() = 0;
+    virtual operator float() = 0;
 
     size_t offset = 0;
     std::string name;
@@ -54,7 +56,8 @@ protected:
 
 public:
 
-
+    /// @brief The base observable interface
+    /// @tparam Type What the member data should be stored as
     template <typename Type = uint8_t>
     class Updatable : public IUpdatable {
     public:
@@ -85,8 +88,12 @@ public:
             return __size;
         }
 
-        Type& operator*() {
-            return *(Type*)_raw;
+        // Type& operator*() {
+        //     return *(Type*)_raw;
+        // }
+
+        virtual operator float() override {
+            return apply();
         }
 
         Updatable& operator=(const float& rhs) {

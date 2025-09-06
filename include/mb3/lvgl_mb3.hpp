@@ -155,3 +155,26 @@ inline void createPath(lv_layer_t * layer, std::function<void(lv_vector_path_t* 
     lv_vector_path_delete(path);
     lv_vector_dsc_delete(dsc);
 }
+
+#define LV_DRAW_BUF_CREATE_PSRAM(name, _w, _h, _cf) \
+    static uint8_t * buf_##name = (uint8_t*)heap_caps_calloc(1, LV_DRAW_BUF_SIZE(_w, _h, _cf), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT); \
+    static lv_draw_buf_t name = { \
+        .header = { \
+                    .magic = LV_IMAGE_HEADER_MAGIC, \
+                    .cf = (_cf), \
+                    .flags = LV_IMAGE_FLAGS_MODIFIABLE, \
+                    .w = (_w), \
+                    .h = (_h), \
+                    .stride = LV_DRAW_BUF_STRIDE(_w, _cf), \
+                    .reserved_2 = 0, \
+                }, \
+        .data_size = LV_DRAW_BUF_SIZE(_w, _h, _cf), \
+        .data = buf_##name, \
+        .unaligned_data = buf_##name, \
+    }; \
+    do { \
+        lv_image_header_t * header = &name.header; \
+        lv_draw_buf_init(&name, header->w, header->h, (lv_color_format_t)header->cf, header->stride, buf_##name, LV_DRAW_BUF_SIZE(_w, _h, _cf)); \
+        lv_draw_buf_set_flag(&name, LV_IMAGE_FLAGS_MODIFIABLE); \
+    } while(0)
+    
