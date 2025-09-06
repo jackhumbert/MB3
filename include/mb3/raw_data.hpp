@@ -59,7 +59,8 @@ public:
         Updatable(size_t size = 1, float scale = 1.0, float offset = 0.0) : __size(size), _scale(scale), _offset(offset) {
             // T::Updatable?
             __members.push_back(std::shared_ptr<Updatable>(this));
-            _raw = (uint8_t*)heap_caps_calloc(1, BYTE_CEILING(size), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            _raw = (uint8_t*)heap_caps_calloc(1, BYTE_CEILING(size), MALLOC_CAP_8BIT);
+            // _raw = (uint8_t*)heap_caps_calloc(1, BYTE_CEILING(size), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
             if (_raw == nullptr) {
                 log_e("Error allocating %d bytes", BYTE_CEILING(size));
             }
@@ -166,7 +167,8 @@ public:
             _members.emplace_back(member);
         }
         _size = pos;
-        _data = (uint8_t*)heap_caps_calloc(1, BYTE_CEILING(_size), MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
+        // _data = (uint8_t*)heap_caps_calloc(1, BYTE_CEILING(_size), MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
+        _data = (uint8_t*)heap_caps_calloc(1, BYTE_CEILING(_size), MALLOC_CAP_8BIT);
         if (_data != nullptr)
             allocated = true;
         else {
