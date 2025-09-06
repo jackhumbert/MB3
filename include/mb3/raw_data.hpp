@@ -10,6 +10,8 @@
 
 #define BYTE_CEILING(b) (((b - 1) / 8) + 1)
 
+class IRawData;
+
 class IUpdatable {
 public:
     IUpdatable() {
@@ -18,11 +20,12 @@ public:
 
     virtual size_t size() = 0;
     virtual void update(uint64_t new_value) = 0;
-    // virtual void * get() = 0;
+    virtual void * get_raw() = 0;
 
     size_t offset = 0;
     std::string name;
     bool changed = false;
+    IRawData * parent = nullptr;
 };
 
 class IRawData {
@@ -33,6 +36,7 @@ public:
     virtual uint8_t * data() = 0;
     virtual void members() = 0;
     virtual const std::string& name() = 0;
+    virtual void update_from_member(IUpdatable&) = 0;
 };
 
 template<typename T>
@@ -85,6 +89,13 @@ public:
             return *(Type*)_raw;
         }
 
+        Updatable& operator=(const float& rhs) {
+            auto new_value = ((rhs - _offset) / _scale);
+            update(new_value);
+            parent->update_from_member(*this);
+            return *this;
+        }
+
         float apply() {
             return ((*(Type*)_raw) * _scale) + _offset;
         }
@@ -92,6 +103,10 @@ public:
         // virtual void * get() {
         //     return _raw;
         // }
+
+        virtual void * get_raw() {
+            return (void*)_raw;
+        }
 
         virtual void update(uint64_t new_value) {
             if (__size <= 8) {
@@ -154,6 +169,7 @@ public:
         size_t pos = 0;
         for (auto & member : __members) {
             member->offset = pos;
+            member->parent = this;
             static char tmp[6] = {0};
             if (member->name.empty()) {
                 sprintf(tmp, "unk%02zX", pos);
@@ -210,6 +226,12 @@ public:
         for (auto & member : _members) {
             member->changed = false;
         }
+    }
+
+    virtual void update_from_member(IUpdatable& member) {
+        uint64_t * ptr = (uint64_t*)_data;
+        *ptr &= ~(((1UL << member.size()) - 1) << member.offset);
+        *ptr |= *(uint64_t*)member.get_raw() << member.offset;
     }
 
     virtual size_t size() {
