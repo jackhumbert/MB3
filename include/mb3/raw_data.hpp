@@ -56,7 +56,7 @@ protected:
 
 public:
 
-    /// @brief The base observable interface
+    /// @brief The main updatable implementation
     /// @tparam Type What the member data should be stored as
     template <typename Type = uint8_t>
     class Updatable : public IUpdatable {
