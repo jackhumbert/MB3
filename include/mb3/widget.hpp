@@ -21,12 +21,13 @@ public:
 template <typename D, typename T = D>
 class TextWidget : public IWidget {
 public:
+    /// @brief Hooks up a lv_text_obj to a TAdjustedObservable<D, T>
     TextWidget(lv_obj_t * lv_text_obj, const char * format, T * p_value, float scalar = 1.f, float offset = 0.f) :
         o_value(p_value, scalar, offset),
         lv_text_obj(lv_text_obj),
         format(format)
     {
-        update();
+        lv_label_set_text_fmt(lv_text_obj, format, o_value.get());
     }
 
     virtual ~TextWidget() override = default;
