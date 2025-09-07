@@ -40,11 +40,13 @@ public:
 /// @brief A variable manager that can be bound to a pointer
 /// @tparam D The primitive display type for formatting, math
 /// @tparam T The optional smart type @ref IUpdatable
-template <typename D, typename T = D>
+/// @tparam I The input type for computeDisplayValue
+template <typename D, typename T = D, typename I = D>
 class TObservable : public IObservable {
 public:
     using DisplayType = D;
     using DataType = T;
+    using InputType = I;
 
     TObservable(DataType * p_value) : p_value(p_value) {
         ObservableManager::add(this);
@@ -61,7 +63,7 @@ public:
         displayValue = newValue;
     }
 
-    virtual DisplayType computeDisplayValue(DisplayType input) {
+    virtual DisplayType computeDisplayValue(InputType input) {
         return input;
     }
 
@@ -77,18 +79,22 @@ public:
     DisplayType displayValue = 0;
 };
 
-template <typename D, typename T = D>
-class TAdjustedObservable : public TObservable<D, T> {
+template <typename D, typename T = D, typename I = D>
+class TAdjustedObservable : public TObservable<D, T, I> {
 public:
-    TAdjustedObservable(T * p_value, D scalar, D offset) : scalar(scalar), offset(offset), TObservable<D, T>(p_value) {
+    using DisplayType = D;
+    using DataType = T;
+    using InputType = I;
+
+    TAdjustedObservable(DataType * p_value, DisplayType scalar, DisplayType offset) : scalar(scalar), offset(offset), TObservable<D, T, I>(p_value) {
     
     }
     virtual ~TAdjustedObservable() override = default;
 
-    virtual D computeDisplayValue(D input) override {
+    virtual DisplayType computeDisplayValue(InputType input) override {
         return (input * scalar) + offset;
     }
 
-    D scalar;
-    D offset;
+    DisplayType scalar;
+    DisplayType offset;
 };
