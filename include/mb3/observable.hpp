@@ -86,7 +86,7 @@ public:
     using DataType = T;
     using InputType = I;
 
-    TAdjustedObservable(DataType * p_value, DisplayType scalar, DisplayType offset) : scalar(scalar), offset(offset), TObservable<D, T, I>(p_value) {
+    TAdjustedObservable(DataType * p_value, DisplayType scalar, DisplayType offset) : TObservable<D, T, I>(p_value), scalar(scalar), offset(offset) {
     
     }
     virtual ~TAdjustedObservable() override = default;

@@ -167,7 +167,7 @@ public:
         float _offset = 0.0;
     };
 
-    RawData(const std::string& str, uint32_t id) : _name(str), _id(id) {
+    RawData(const std::string& str, uint32_t id) : _id(id), _name(str)  {
         // log("RawData()");
     }
 

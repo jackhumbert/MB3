@@ -40,6 +40,6 @@ public:
     }
 
     TAdjustedObservable<D, T> o_value;
-    const char * format;
     lv_obj_t * lv_text_obj;
+    const char * format;
 };
