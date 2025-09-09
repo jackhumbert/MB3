@@ -1,6 +1,7 @@
 #include <mb3/defaults.hpp>
 #include <mb3/system_can.hpp>
 #include <mb3/can.hpp>
+#include <config.hpp>
 
 #ifndef MB3_CAN_TX
 #define MB3_CAN_TX GPIO_NUM_NC
