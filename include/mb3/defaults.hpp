@@ -13,11 +13,3 @@
 #define millis() (esp_time_get_time() / 1000)
 
 #endif
-
-#ifndef MB3_CAN_TX
-#define MB3_CAN_TX -1
-#endif
-
-#ifndef MB3_CAN_RX
-#define MB3_CAN_RX -1
-#endif

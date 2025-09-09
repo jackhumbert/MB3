@@ -2,6 +2,14 @@
 #include <mb3/system_can.hpp>
 #include <mb3/can.hpp>
 
+#ifndef MB3_CAN_TX
+#define MB3_CAN_TX -1
+#endif
+
+#ifndef MB3_CAN_RX
+#define MB3_CAN_RX -1
+#endif
+
 bool CAN::hasRX = false;
 
 static CanLog message = {0};
