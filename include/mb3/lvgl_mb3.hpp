@@ -156,8 +156,8 @@ inline void createPath(lv_layer_t * layer, std::function<void(lv_vector_path_t* 
     lv_vector_dsc_delete(dsc);
 }
 
-#define LV_DRAW_BUF_CREATE_PSRAM(name, _w, _h, _cf) \
-    static uint8_t * buf_##name = (uint8_t*)heap_caps_calloc(1, LV_DRAW_BUF_SIZE(_w, _h, _cf), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT); \
+#define LV_DRAW_BUF_CREATE(name, _w, _h, _cf, caps) \
+    static uint8_t * buf_##name = (uint8_t*)heap_caps_calloc(1, LV_DRAW_BUF_SIZE(_w, _h, _cf), caps); \
     static lv_draw_buf_t name = { \
         .header = { \
                     .magic = LV_IMAGE_HEADER_MAGIC, \
@@ -178,3 +178,4 @@ inline void createPath(lv_layer_t * layer, std::function<void(lv_vector_path_t* 
         lv_draw_buf_set_flag(&name, LV_IMAGE_FLAGS_MODIFIABLE); \
     } while(0)
     
+#define LV_DRAW_BUF_CREATE_PSRAM(name, _w, _h, _cf) LV_DRAW_BUF_CREATE(name, _w, _h, _cf,  MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
