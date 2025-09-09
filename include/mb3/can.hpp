@@ -13,7 +13,7 @@
 class ICanFrame;
 
 /// @brief The base CAN data interface
-class ICanData {
+class CanFrameTypes {
 public:
     static inline std::vector<std::shared_ptr<ICanFrame>> types;
 };

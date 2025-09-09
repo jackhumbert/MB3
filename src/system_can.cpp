@@ -1,13 +1,13 @@
-#include <defaults.hpp>
+#include <mb3/defaults.hpp>
 #include <mb3/system_can.hpp>
 #include <mb3/can.hpp>
 
 #ifndef MB3_CAN_TX
-#define MB3_CAN_TX -1
+#define MB3_CAN_TX GPIO_NUM_NC
 #endif
 
 #ifndef MB3_CAN_RX
-#define MB3_CAN_RX -1
+#define MB3_CAN_RX GPIO_NUM_NC
 #endif
 
 bool CAN::hasRX = false;
@@ -71,7 +71,7 @@ void CAN::task_impl() {
         // log_d("Message received: 0x%02X", message.frame.identifier);
 
         bool known = false;
-        for (auto & can_msg_type : CanData::types) {
+        for (auto & can_msg_type : CanFrameTypes::types) {
             if (can_msg_type->id() == message.frame.identifier) {
                 known = true;
                 // log_d("%s message received (%d)", can_msg_type->name().c_str(), message.frame.data_length_code);
