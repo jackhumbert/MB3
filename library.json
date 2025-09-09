@@ -15,9 +15,6 @@
         "includeDir": "include",
         "srcDir": "src"
     },
-    "dependencies": {
-        "lvgl/lvgl": "~9.3.0"
-    },
     "frameworks": "*",
     "platforms": "*",
     "headers": [
