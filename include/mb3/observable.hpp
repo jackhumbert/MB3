@@ -39,7 +39,7 @@ public:
 
 /// @brief A variable manager that can be bound to a pointer
 /// @tparam D The primitive display type for formatting, math
-/// @tparam T The optional smart type @ref IUpdatable
+/// @tparam T The optional smart type @ref ICanSignal
 /// @tparam I The input type for computeDisplayValue
 template <typename D, typename T = D, typename I = D>
 class TObservable : public IObservable {

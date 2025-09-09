@@ -17,7 +17,7 @@ public:
 
 /// @brief `lv_text_obj` manager that can be bound to a data pointer
 /// @tparam D The primitive display type for formatting, math
-/// @tparam T The optional smart type, @ref IUpdatable
+/// @tparam T The optional smart type, @ref ICanSignal
 template <typename D, typename T = D>
 class TextWidget : public IWidget {
 public:

@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <new>
 #include <functional>
-#include "osal/lv_os.h"
+#include <osal/lv_os.h>
 #include <mb3/lvgl_mb3.hpp>
 
 class Shape {
@@ -32,14 +32,14 @@ public:
     }
 
     Shape & start(float x, float y) {
-        this->x = x_;
-        this->y = y_;
+        this->x = x;
+        this->y = y;
         lv_vector_path_move_to(path, {x, y});
         return *this;
     }
     Shape & line(float x, float y) {
-        this->x += x_;
-        this->y += y_;
+        this->x += x;
+        this->y += y;
         lv_vector_path_line_to(path, {x, y});
         return *this;
     }

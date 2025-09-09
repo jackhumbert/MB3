@@ -1,19 +1,32 @@
 {
     "name": "MB3",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "repository": {
         "type": "git",
         "url": "https://github.com/jackhumbert/MB3"
     },
+    "authors": [
+        {
+            "name": "Jack Humbert",
+            "maintainer": true
+        }
+    ],
     "build" : {
         "includeDir": "include",
         "srcDir": "src"
     },
+    "dependencies": {
+        "lvgl/lvgl": "~9.3.0"
+    },
+    "frameworks": "*",
+    "platforms": "*",
     "headers": [
+        "mb3/can.hpp",
         "mb3/lvgl_mb3.hpp",
         "mb3/observable.hpp",
-        "mb3/raw_data.hpp",
         "mb3/shape.hpp",
+        "mb3/system_can.hpp",
+        "mb3/system.hpp",
         "mb3/widget.hpp"
     ]
 }

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <lvgl.h>
 #include <functional>
 #include <src/widgets/canvas/lv_canvas_private.h>
@@ -16,8 +18,6 @@ inline void lv_vector_path_cubic_to(lv_vector_path_t *path, lv_fpoint_t p1, lv_f
 
 // lv_canvas_fill_bg(banner_draw, COLOR_BLACK, LV_OPA_0) without invalidate
 inline void clearCanvas(lv_obj_t * obj, int min_y = 0, int max_y = -1) {
-
-// void clearCanvas(lv_obj_t * obj, int min_y, int max_y) {
     lv_canvas_t * canvas = (lv_canvas_t *)obj;
     lv_draw_buf_t * draw_buf = canvas->draw_buf;
     if(draw_buf == NULL) return;
@@ -123,11 +123,6 @@ inline void clearCanvas(lv_obj_t * obj, int min_y = 0, int max_y = -1) {
 }
 
 // lv_canvas_finish_layer(obj, layer) without invalidate
-// void queueCanvasLayerDraw(lv_obj_t * obj, lv_layer_t * layer);
-
-// void createPath(lv_layer_t * layer, std::function<void(lv_vector_path_t* path, lv_vector_dsc_t* dsc)> const & body);
-
-
 inline void queueCanvasLayerDraw(lv_obj_t * obj, lv_layer_t * layer) {
     if (layer->draw_task_head == NULL) return;
 

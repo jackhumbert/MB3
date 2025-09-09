@@ -10,12 +10,18 @@
 
 #define BYTE_CEILING(b) (((b - 1) / 8) + 1)
 
-class IRawData;
+class ICanFrame;
 
-/// @brief The base updatable interface
-class IUpdatable {
+/// @brief The base CAN data interface
+class ICanData {
 public:
-    IUpdatable() {
+    static inline std::vector<std::shared_ptr<ICanFrame>> types;
+};
+
+/// @brief The base CAN signal interface
+class ICanSignal {
+public:
+    ICanSignal() {
         
     }
 
@@ -27,10 +33,10 @@ public:
     size_t offset = 0;
     std::string name;
     bool changed = false;
-    IRawData * parent = nullptr;
+    ICanFrame * parent = nullptr;
 };
 
-class IRawData {
+class ICanFrame {
 public:
     virtual void update() = 0;
     virtual size_t size() = 0;
@@ -38,19 +44,21 @@ public:
     virtual uint8_t * data() = 0;
     virtual void members() = 0;
     virtual const std::string& name() = 0;
-    virtual void update_from_member(IUpdatable&) = 0;
+    virtual void update_from_member(ICanSignal&) = 0;
 };
 
+/// @brief A CAN frame base class
+/// @tparam T derived type (for static access)
 template<typename T>
-class RawData : public IRawData {
-    using RawDataCallbackType = std::function<void(T&)>;
+class CanFrame : public ICanFrame {
+    using CanFrameCallbackType = std::function<void(T&)>;
 protected:
-    static inline std::vector<std::shared_ptr<IUpdatable>> __members;
+    static inline std::vector<std::shared_ptr<ICanSignal>> __members;
 
     size_t _size = 0;
     uint32_t _id = 0xFFFFFFFF;
     uint8_t * _data = nullptr;
-    std::vector<std::shared_ptr<IUpdatable>> _members;
+    std::vector<std::shared_ptr<ICanSignal>> _members;
     std::string _name;
     bool allocated = false;
 
@@ -59,13 +67,13 @@ public:
     /// @brief The main updatable implementation
     /// @tparam Type What the member data should be stored as
     template <typename Type = uint8_t>
-    class Updatable : public IUpdatable {
+    class CanSignal : public ICanSignal {
     public:
-        using UpdatableCallbackType = std::function<void(Updatable&)>;
+        using CanSignalCallbackType = std::function<void(CanSignal&)>;
 
-        Updatable(size_t size = 1, float scale = 1.0, float offset = 0.0) : __size(size), _scale(scale), _offset(offset) {
-            // T::Updatable?
-            __members.push_back(std::shared_ptr<Updatable>(this));
+        CanSignal(size_t size = 1, float scale = 1.0, float offset = 0.0) : __size(size), _scale(scale), _offset(offset) {
+            // T::CanSignal?
+            __members.push_back(std::shared_ptr<CanSignal>(this));
             _raw = (uint8_t*)heap_caps_calloc(1, BYTE_CEILING(size), MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
             // _raw = (uint8_t*)heap_caps_calloc(1, BYTE_CEILING(size), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
             if (_raw == nullptr) {
@@ -73,12 +81,12 @@ public:
             }
         }
 
-        Updatable(const std::string& str) : Updatable() {
-            // log("Updatable(str)");
+        CanSignal(const std::string& str) : CanSignal() {
+            // log("CanSignal(str)");
             name = str;
         }
 
-        // ~Updatable() {
+        // ~CanSignal() {
         //     if (_raw) {
         //         free(_raw);
         //     }
@@ -96,7 +104,7 @@ public:
             return apply();
         }
 
-        Updatable& operator=(const float& rhs) {
+        CanSignal& operator=(const float& rhs) {
             auto new_value = ((rhs - _offset) / _scale);
             update(new_value);
             parent->update_from_member(*this);
@@ -156,7 +164,7 @@ public:
             }
         }
 
-        std::vector<UpdatableCallbackType> callbacks;
+        std::vector<CanSignalCallbackType> callbacks;
 
     private:
         // static constexpr size_t __size = Size;
@@ -167,11 +175,11 @@ public:
         float _offset = 0.0;
     };
 
-    RawData(const std::string& str, uint32_t id) : _id(id), _name(str)  {
-        // log("RawData()");
+    CanFrame(const std::string& str, uint32_t id) : _id(id), _name(str)  {
+        // log("CanFrame()");
     }
 
-    inline std::shared_ptr<IRawData> init() {
+    inline std::shared_ptr<ICanFrame> init() {
         // log("init()");
         size_t pos = 0;
         for (auto & member : __members) {
@@ -197,7 +205,7 @@ public:
         else {
             log_e("Error allocating %s", _name.c_str());
         }
-        return std::shared_ptr<IRawData>(this);
+        return std::shared_ptr<ICanFrame>(this);
     }
 
     virtual void update() {
@@ -235,7 +243,7 @@ public:
         }
     }
 
-    virtual void update_from_member(IUpdatable& member) {
+    virtual void update_from_member(ICanSignal& member) {
         uint64_t * ptr = (uint64_t*)_data;
         *ptr &= ~(((1UL << member.size()) - 1) << member.offset);
         *ptr |= *(uint64_t*)member.get_raw() << member.offset;
@@ -264,11 +272,11 @@ public:
         return _name;
     }
 
-    std::vector<RawDataCallbackType> callbacks;
+    std::vector<CanFrameCallbackType> callbacks;
 
 private:
-    // ~RawData() {
-    //     // log("~RawData()");
+    // ~CanFrame() {
+    //     // log("~CanFrame()");
     //     if (allocated) {
     //         free(_data);
     //     }
