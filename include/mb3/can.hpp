@@ -104,6 +104,11 @@ public:
             return apply();
         }
 
+        template <typename ReturnType>
+        ReturnType get() {
+            return *(ReturnType*)_raw;
+        }
+
         CanSignal& operator=(const float& rhs) {
             auto new_value = ((rhs - _offset) / _scale);
             update(new_value);
@@ -214,6 +219,8 @@ public:
         static size_t bit_off;
         static size_t mem_size;
 
+        updated = true;
+
         for (auto & member : _members) {
             offset = member->offset;
             byte_off = offset / 8;
@@ -273,6 +280,7 @@ public:
     }
 
     std::vector<CanFrameCallbackType> callbacks;
+    bool updated = false;
 
 private:
     // ~CanFrame() {

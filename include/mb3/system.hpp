@@ -4,6 +4,7 @@
 #include <list>
 #include <vector>
 #include "esp_task_wdt.h"
+#include <config.hpp>
 #include <mb3/defaults.hpp>
 
 // #define EXECUTION_TIMES_SIZE 1000
