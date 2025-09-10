@@ -7,6 +7,7 @@
 #include <esp32-hal-log.h>
 #include <string>
 #include <functional>
+#include <cmath>
 
 #define BYTE_CEILING(b) (((b - 1) / 8) + 1)
 
