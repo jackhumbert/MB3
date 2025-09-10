@@ -34,3 +34,11 @@
 #ifndef MB3_CAN_MODE
 #define MB3_CAN_MODE TWAI_MODE_NORMAL
 #endif
+
+#ifndef MB3_CAN_LOG_INCLUDE
+#define MB3_CAN_LOG_INCLUDE <config.hpp>
+#endif
+
+#ifndef MB3_CAN_LOG
+#define MB3_CAN_LOG(msg) do {} while(0)
+#endif

@@ -3,6 +3,7 @@
 #include <mb3/system_can.hpp>
 #include <mb3/can.hpp>
 #include <config.hpp>
+#include MB3_CAN_LOG_INCLUDE
 
 bool CAN::hasRX = false;
 
@@ -31,17 +32,17 @@ bool CAN::setup_impl() {
     // Install TWAI driver
     auto res = twai_driver_install(&g_config, &t_config, &f_config);
     if (res == ESP_OK) {
-        MB3_LOG_NICE("CAN Driver installed");
+        MB3_LOG_NICE("[CAN] Driver installed");
     } else {
-        MB3_LOG_NICE("Failed to install CAN driver: %d", res);
+        MB3_LOG_NICE("[CAN] Failed to install driver: %d", res);
         return false;
     }
 
     // Start TWAI driver
     if (twai_start() == ESP_OK) {
-        MB3_LOG_NICE("CAN Driver started");
+        MB3_LOG_NICE("[CAN] Driver started");
     } else {
-        MB3_LOG_NICE("Failed to start CAN driver");
+        MB3_LOG_NICE("[CAN] Failed to start driver");
         return false;
     }
 
@@ -60,6 +61,7 @@ void CAN::task_impl() {
         hasRX = true;
         message.timestamp = esp_timer_get_time();
         // SDCard::log_can_message(&message);
+        MB3_CAN_LOG(&message);
         // MB3_LOG_NICE("Message received: 0x%02X", message.frame.identifier);
 
         bool known = false;
@@ -83,7 +85,7 @@ void CAN::task_impl() {
             }
         }
         if (!known) {
-            MB3_LOG_NICE("Unknown CAN message: %08X (%u): %02X %02X %02X %02X %02X %02X %02X %02X", message.frame.identifier, message.frame.data_length_code,
+            MB3_LOG_NICE("[CAN] Unknown message: %08X (%u): %02X %02X %02X %02X %02X %02X %02X %02X", message.frame.identifier, message.frame.data_length_code,
                 message.frame.data[0], 
                 message.frame.data[1], 
                 message.frame.data[2], 
@@ -97,7 +99,7 @@ void CAN::task_impl() {
     }
 
     if (res != ESP_ERR_TIMEOUT) {
-        MB3_LOG_NICE("ESP twai_receive error: %d", res);
+        MB3_LOG_NICE("[CAN] ESP twai_receive error: %d", res);
     }
 
     if ((millis() - timer) > 1000) {
@@ -108,37 +110,37 @@ void CAN::task_impl() {
             // if (alerts_triggered & 0x00000001) MB3_LOG_NICE("TWAI_ALERT_TX_IDLE");
             // if (alerts_triggered & 0x00000002) MB3_LOG_NICE("TWAI_ALERT_TX_SUCCESS");
             // if (alerts_triggered & 0x00000004) MB3_LOG_NICE("TWAI_ALERT_RX_DATA");
-            if (alerts_triggered & 0x00000008) MB3_LOG_NICE("TWAI_ALERT_BELOW_ERR_WARN");
-            if (alerts_triggered & 0x00000010) MB3_LOG_NICE("TWAI_ALERT_ERR_ACTIVE");
-            if (alerts_triggered & 0x00000020) MB3_LOG_NICE("TWAI_ALERT_RECOVERY_IN_PROGRESS");
-            if (alerts_triggered & 0x00000040) MB3_LOG_NICE("TWAI_ALERT_BUS_RECOVERED");
-            if (alerts_triggered & 0x00000080) MB3_LOG_NICE("TWAI_ALERT_ARB_LOST");
-            if (alerts_triggered & 0x00000100) MB3_LOG_NICE("TWAI_ALERT_ABOVE_ERR_WARN");
-            if (alerts_triggered & 0x00000200) MB3_LOG_NICE("TWAI_ALERT_BUS_ERROR");
-            if (alerts_triggered & 0x00000400) MB3_LOG_NICE("TWAI_ALERT_TX_FAILED");
-            if (alerts_triggered & 0x00000800) MB3_LOG_NICE("TWAI_ALERT_RX_QUEUE_FULL");
-            if (alerts_triggered & 0x00001000) MB3_LOG_NICE("TWAI_ALERT_ERR_PASS");
-            if (alerts_triggered & 0x00002000) MB3_LOG_NICE("TWAI_ALERT_BUS_OFF");
-            if (alerts_triggered & 0x00004000) MB3_LOG_NICE("TWAI_ALERT_RX_FIFO_OVERRUN");
-            if (alerts_triggered & 0x00008000) MB3_LOG_NICE("TWAI_ALERT_TX_RETRIED");
-            if (alerts_triggered & 0x00010000) MB3_LOG_NICE("TWAI_ALERT_PERIPH_RESET");
+            if (alerts_triggered & 0x00000008) MB3_LOG_NICE("[CAN] TWAI_ALERT_BELOW_ERR_WARN");
+            if (alerts_triggered & 0x00000010) MB3_LOG_NICE("[CAN] TWAI_ALERT_ERR_ACTIVE");
+            if (alerts_triggered & 0x00000020) MB3_LOG_NICE("[CAN] TWAI_ALERT_RECOVERY_IN_PROGRESS");
+            if (alerts_triggered & 0x00000040) MB3_LOG_NICE("[CAN] TWAI_ALERT_BUS_RECOVERED");
+            if (alerts_triggered & 0x00000080) MB3_LOG_NICE("[CAN] TWAI_ALERT_ARB_LOST");
+            if (alerts_triggered & 0x00000100) MB3_LOG_NICE("[CAN] TWAI_ALERT_ABOVE_ERR_WARN");
+            if (alerts_triggered & 0x00000200) MB3_LOG_NICE("[CAN] TWAI_ALERT_BUS_ERROR");
+            if (alerts_triggered & 0x00000400) MB3_LOG_NICE("[CAN] TWAI_ALERT_TX_FAILED");
+            if (alerts_triggered & 0x00000800) MB3_LOG_NICE("[CAN] TWAI_ALERT_RX_QUEUE_FULL");
+            if (alerts_triggered & 0x00001000) MB3_LOG_NICE("[CAN] TWAI_ALERT_ERR_PASS");
+            if (alerts_triggered & 0x00002000) MB3_LOG_NICE("[CAN] TWAI_ALERT_BUS_OFF");
+            if (alerts_triggered & 0x00004000) MB3_LOG_NICE("[CAN] TWAI_ALERT_RX_FIFO_OVERRUN");
+            if (alerts_triggered & 0x00008000) MB3_LOG_NICE("[CAN] TWAI_ALERT_TX_RETRIED");
+            if (alerts_triggered & 0x00010000) MB3_LOG_NICE("[CAN] TWAI_ALERT_PERIPH_RESET");
 
             if (alerts_triggered) {
                 twai_status_info_t status;
                 if (twai_get_status_info(&status) == ESP_OK) {
-                    if (status.state == TWAI_STATE_STOPPED) MB3_LOG_NICE("* TWAI_STATE_STOPPED");
-                    // if (status.state == TWAI_STATE_RUNNING) MB3_LOG_NICE("* TWAI_STATE_RUNNING");
-                    if (status.state == TWAI_STATE_BUS_OFF) MB3_LOG_NICE("* TWAI_STATE_BUS_OFF");
-                    if (status.state == TWAI_STATE_RECOVERING) MB3_LOG_NICE("* TWAI_STATE_RECOVERING");
-                    if (status.msgs_to_tx) MB3_LOG_NICE("* msgs_to_tx: %d", status.msgs_to_tx);
-                    if (status.msgs_to_rx) MB3_LOG_NICE("* msgs_to_rx: %d", status.msgs_to_rx);
-                    if (status.tx_error_counter) MB3_LOG_NICE("* tx_error_counter: %d", status.tx_error_counter);
-                    if (status.rx_error_counter) MB3_LOG_NICE("* rx_error_counter: %d", status.rx_error_counter);
-                    if (status.tx_failed_count) MB3_LOG_NICE("* tx_failed_count: %d", status.tx_failed_count);
-                    if (status.rx_missed_count) MB3_LOG_NICE("* rx_missed_count: %d", status.rx_missed_count);
-                    if (status.rx_overrun_count) MB3_LOG_NICE("* rx_overrun_count: %d", status.rx_overrun_count);
-                    if (status.arb_lost_count) MB3_LOG_NICE("* arb_lost_count: %d", status.arb_lost_count);
-                    if (status.bus_error_count) MB3_LOG_NICE("* bus_error_count: %d", status.bus_error_count);
+                    if (status.state == TWAI_STATE_STOPPED) MB3_LOG_NICE("[CAN] * TWAI_STATE_STOPPED");
+                    // if (status.state == TWAI_STATE_RUNNING) MB3_LOG_NICE("[CAN] * TWAI_STATE_RUNNING");
+                    if (status.state == TWAI_STATE_BUS_OFF) MB3_LOG_NICE("[CAN] * TWAI_STATE_BUS_OFF");
+                    if (status.state == TWAI_STATE_RECOVERING) MB3_LOG_NICE("[CAN] * TWAI_STATE_RECOVERING");
+                    if (status.msgs_to_tx) MB3_LOG_NICE("[CAN] * msgs_to_tx: %d", status.msgs_to_tx);
+                    if (status.msgs_to_rx) MB3_LOG_NICE("[CAN] * msgs_to_rx: %d", status.msgs_to_rx);
+                    if (status.tx_error_counter) MB3_LOG_NICE("[CAN] * tx_error_counter: %d", status.tx_error_counter);
+                    if (status.rx_error_counter) MB3_LOG_NICE("[CAN] * rx_error_counter: %d", status.rx_error_counter);
+                    if (status.tx_failed_count) MB3_LOG_NICE("[CAN] * tx_failed_count: %d", status.tx_failed_count);
+                    if (status.rx_missed_count) MB3_LOG_NICE("[CAN] * rx_missed_count: %d", status.rx_missed_count);
+                    if (status.rx_overrun_count) MB3_LOG_NICE("[CAN] * rx_overrun_count: %d", status.rx_overrun_count);
+                    if (status.arb_lost_count) MB3_LOG_NICE("[CAN] * arb_lost_count: %d", status.arb_lost_count);
+                    if (status.bus_error_count) MB3_LOG_NICE("[CAN] * bus_error_count: %d", status.bus_error_count);
                 }
             }
         }
