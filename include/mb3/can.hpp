@@ -111,7 +111,7 @@ public:
 
         CanSignal& operator=(const float& rhs) {
             auto new_value = ((rhs - _offset) / _scale);
-            update(new_value);
+            update(std::round(new_value));
             parent->update_from_member(*this);
             return *this;
         }
