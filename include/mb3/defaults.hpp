@@ -14,7 +14,7 @@
 
 #endif
 
-#define MB3_LOG_NICE(format, ...) MB3_LOG("[%6u][D] " format "\r\n", (unsigned long) (esp_timer_get_time() / 1000ULL) __VA_OPT__(,) __VA_ARGS__);
+#define MB3_LOG_NICE(format, ...) MB3_LOG("[%6u][D]" format "\r\n", (unsigned long) (esp_timer_get_time() / 1000ULL) __VA_OPT__(,) __VA_ARGS__);
 
 #ifndef MB3_CAN_TX
 #define MB3_CAN_TX GPIO_NUM_NC
