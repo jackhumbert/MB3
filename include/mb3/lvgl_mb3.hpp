@@ -151,20 +151,30 @@ public:
         lv_canvas_init_layer(obj, &layer);
     }
 
+    Layer(lv_layer_t * p_layer, bool lock = false) : p_layer(p_layer), lock(lock) {
+        if (lock)
+            lv_lock();
+    };
+
     ~Layer() {
-        queueCanvasLayerDraw(obj, &layer);
+        if (p_layer == nullptr)
+            queueCanvasLayerDraw(obj, &layer);
         if (lock)
             lv_unlock();
     }
 
     operator lv_layer_t * () {
-        return &layer;
+        if (p_layer)
+            return p_layer;
+        else
+            return &layer;
     }
 
 private:
     lv_obj_t * obj;
     bool lock;
     lv_layer_t layer;
+    lv_layer_t * p_layer = nullptr;
 
 };
 
