@@ -139,6 +139,35 @@ inline void queueCanvasLayerDraw(lv_obj_t * obj, lv_layer_t * layer) {
     }
 }
 
+/// @brief Helper for @ref lv_layer_t
+class Layer {
+public:
+    /// @brief Create an automatic-scope @ref lv_layer_t
+    /// @param obj Parent @ref lv_obj_t pointer
+    /// @param lock Whether `lv_lock()` should be called
+    Layer(lv_obj_t * obj, bool lock = false) : obj(obj), lock(lock) {
+        if (lock)
+            lv_lock();
+        lv_canvas_init_layer(obj, &layer);
+    }
+
+    ~Layer() {
+        queueCanvasLayerDraw(obj, &layer);
+        if (lock)
+            lv_unlock();
+    }
+
+    operator lv_layer_t * () {
+        return &layer;
+    }
+
+private:
+    lv_obj_t * obj;
+    bool lock;
+    lv_layer_t layer;
+
+};
+
 inline void createPath(lv_layer_t * layer, std::function<void(lv_vector_path_t* path, lv_vector_dsc_t* dsc)> const & body) {
     lv_vector_dsc_t * dsc = lv_vector_dsc_create(layer);
     lv_vector_path_t * path = lv_vector_path_create(LV_VECTOR_PATH_QUALITY_HIGH);
