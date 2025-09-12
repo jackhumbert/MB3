@@ -20,8 +20,9 @@ bool CAN::setup_impl() {
         .rx_io = MB3_CAN_RX,       
         .clkout_io = TWAI_IO_UNUSED, 
         .bus_off_io = TWAI_IO_UNUSED,
-        .tx_queue_len = 500, 
-        .rx_queue_len = 500, // affects PSRAM
+        .tx_queue_len = 100, 
+        .rx_queue_len = 100, // affects PSRAM
+        // .alerts_enabled = TWAI_ALERT_ALL, 
         .alerts_enabled = TWAI_ALERT_ALL & ~TWAI_ALERT_TX_IDLE & ~TWAI_ALERT_TX_SUCCESS & ~TWAI_ALERT_RX_DATA,  
         .clkout_divider = 0,          
         .intr_flags = ESP_INTR_FLAG_LEVEL1
@@ -106,10 +107,10 @@ void CAN::task_impl() {
         timer = millis();
 
         uint32_t alerts_triggered;
-        if (twai_read_alerts(&alerts_triggered, 0) == ESP_OK) {
-            // if (alerts_triggered & 0x00000001) MB3_LOG_NICE("TWAI_ALERT_TX_IDLE");
-            // if (alerts_triggered & 0x00000002) MB3_LOG_NICE("TWAI_ALERT_TX_SUCCESS");
-            // if (alerts_triggered & 0x00000004) MB3_LOG_NICE("TWAI_ALERT_RX_DATA");
+        if (esp_err_t alert_status = twai_read_alerts(&alerts_triggered, 0); alert_status == ESP_OK) {
+            if (alerts_triggered & 0x00000001) MB3_LOG_NICE("[CAN] TWAI_ALERT_TX_IDLE");
+            if (alerts_triggered & 0x00000002) MB3_LOG_NICE("[CAN] TWAI_ALERT_TX_SUCCESS");
+            if (alerts_triggered & 0x00000004) MB3_LOG_NICE("[CAN] TWAI_ALERT_RX_DATA");
             if (alerts_triggered & 0x00000008) MB3_LOG_NICE("[CAN] TWAI_ALERT_BELOW_ERR_WARN");
             if (alerts_triggered & 0x00000010) MB3_LOG_NICE("[CAN] TWAI_ALERT_ERR_ACTIVE");
             if (alerts_triggered & 0x00000020) MB3_LOG_NICE("[CAN] TWAI_ALERT_RECOVERY_IN_PROGRESS");
@@ -124,24 +125,34 @@ void CAN::task_impl() {
             if (alerts_triggered & 0x00004000) MB3_LOG_NICE("[CAN] TWAI_ALERT_RX_FIFO_OVERRUN");
             if (alerts_triggered & 0x00008000) MB3_LOG_NICE("[CAN] TWAI_ALERT_TX_RETRIED");
             if (alerts_triggered & 0x00010000) MB3_LOG_NICE("[CAN] TWAI_ALERT_PERIPH_RESET");
-
-            if (alerts_triggered) {
-                twai_status_info_t status;
-                if (twai_get_status_info(&status) == ESP_OK) {
-                    if (status.state == TWAI_STATE_STOPPED) MB3_LOG_NICE("[CAN] * TWAI_STATE_STOPPED");
-                    // if (status.state == TWAI_STATE_RUNNING) MB3_LOG_NICE("[CAN] * TWAI_STATE_RUNNING");
-                    if (status.state == TWAI_STATE_BUS_OFF) MB3_LOG_NICE("[CAN] * TWAI_STATE_BUS_OFF");
-                    if (status.state == TWAI_STATE_RECOVERING) MB3_LOG_NICE("[CAN] * TWAI_STATE_RECOVERING");
-                    if (status.msgs_to_tx) MB3_LOG_NICE("[CAN] * msgs_to_tx: %d", status.msgs_to_tx);
-                    if (status.msgs_to_rx) MB3_LOG_NICE("[CAN] * msgs_to_rx: %d", status.msgs_to_rx);
-                    if (status.tx_error_counter) MB3_LOG_NICE("[CAN] * tx_error_counter: %d", status.tx_error_counter);
-                    if (status.rx_error_counter) MB3_LOG_NICE("[CAN] * rx_error_counter: %d", status.rx_error_counter);
-                    if (status.tx_failed_count) MB3_LOG_NICE("[CAN] * tx_failed_count: %d", status.tx_failed_count);
-                    if (status.rx_missed_count) MB3_LOG_NICE("[CAN] * rx_missed_count: %d", status.rx_missed_count);
-                    if (status.rx_overrun_count) MB3_LOG_NICE("[CAN] * rx_overrun_count: %d", status.rx_overrun_count);
-                    if (status.arb_lost_count) MB3_LOG_NICE("[CAN] * arb_lost_count: %d", status.arb_lost_count);
-                    if (status.bus_error_count) MB3_LOG_NICE("[CAN] * bus_error_count: %d", status.bus_error_count);
+        } else {
+            // if (alert_status == ESP_OK) MB3_LOG_NICE("[CAN] Alerts read");
+            // if (alert_status == ESP_ERR_TIMEOUT) MB3_LOG_NICE("[CAN] Timed out waiting for alerts");
+            if (alert_status == ESP_ERR_INVALID_ARG) MB3_LOG_NICE("[CAN] Arguments are invalid");
+            if (alert_status == ESP_ERR_INVALID_STATE) MB3_LOG_NICE("[CAN] TWAI driver is not installed");
+        }
+        if (alerts_triggered) {
+            twai_status_info_t status;
+            if (esp_err_t r = twai_get_status_info(&status); r == ESP_OK) {
+                if (status.state == TWAI_STATE_STOPPED) MB3_LOG_NICE("[CAN] * TWAI_STATE_STOPPED");
+                // if (status.state == TWAI_STATE_RUNNING) MB3_LOG_NICE("[CAN] * TWAI_STATE_RUNNING");
+                if (status.state == TWAI_STATE_BUS_OFF) {
+                    MB3_LOG_NICE("[CAN] * TWAI_STATE_BUS_OFF");
+                    twai_initiate_recovery();
                 }
+                if (status.state == TWAI_STATE_RECOVERING) MB3_LOG_NICE("[CAN] * TWAI_STATE_RECOVERING");
+                if (status.msgs_to_tx) MB3_LOG_NICE("[CAN] * msgs_to_tx: %d", status.msgs_to_tx);
+                if (status.msgs_to_rx) MB3_LOG_NICE("[CAN] * msgs_to_rx: %d", status.msgs_to_rx);
+                if (status.tx_error_counter) MB3_LOG_NICE("[CAN] * tx_error_counter: %d", status.tx_error_counter);
+                if (status.rx_error_counter) MB3_LOG_NICE("[CAN] * rx_error_counter: %d", status.rx_error_counter);
+                if (status.tx_failed_count) MB3_LOG_NICE("[CAN] * tx_failed_count: %d", status.tx_failed_count);
+                if (status.rx_missed_count) MB3_LOG_NICE("[CAN] * rx_missed_count: %d", status.rx_missed_count);
+                if (status.rx_overrun_count) MB3_LOG_NICE("[CAN] * rx_overrun_count: %d", status.rx_overrun_count);
+                if (status.arb_lost_count) MB3_LOG_NICE("[CAN] * arb_lost_count: %d", status.arb_lost_count);
+                if (status.bus_error_count) MB3_LOG_NICE("[CAN] * bus_error_count: %d", status.bus_error_count);
+            } else {
+                if (r == ESP_ERR_INVALID_ARG) MB3_LOG_NICE("[CAN] Arguments are invalid");
+                if (r == ESP_ERR_INVALID_STATE) MB3_LOG_NICE("[CAN] TWAI driver is not installed");
             }
         }
 

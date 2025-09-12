@@ -142,41 +142,53 @@ inline void queueCanvasLayerDraw(lv_obj_t * obj, lv_layer_t * layer) {
 /// @brief Helper for @ref lv_layer_t
 class Layer {
 public:
-    /// @brief Create an automatic-scope @ref lv_layer_t
-    /// @param obj Parent @ref lv_obj_t pointer
-    /// @param lock Whether `lv_lock()` should be called
-    Layer(lv_obj_t * obj, bool lock = false) : obj(obj), lock(lock) {
-        if (lock)
-            lv_lock();
-        lv_canvas_init_layer(obj, &layer);
-    }
-
-    Layer(lv_layer_t * p_layer, bool lock = false) : p_layer(p_layer), lock(lock) {
-        if (lock)
-            lv_lock();
+    Layer(lv_layer_t * parent, lv_area_t * p_area, lv_color_format_t format = LV_COLOR_FORMAT_RGB565) : area(*p_area) {
+        area = *p_area;
+        layer = lv_draw_layer_create(parent, format, &area);
     };
 
     ~Layer() {
-        if (p_layer == nullptr)
-            queueCanvasLayerDraw(obj, &layer);
-        if (lock)
-            lv_unlock();
+        lv_draw_image_dsc_t layer_draw_dsc;
+        lv_draw_image_dsc_init(&layer_draw_dsc);
+        layer_draw_dsc.src = layer;
+        lv_draw_layer(layer->parent, &layer_draw_dsc, &area);
     }
 
     operator lv_layer_t * () {
-        if (p_layer)
-            return p_layer;
-        else
-            return &layer;
+        return layer;
     }
 
 private:
-    lv_obj_t * obj;
-    bool lock;
-    lv_layer_t layer;
-    lv_layer_t * p_layer = nullptr;
+    lv_layer_t * layer;
+    lv_area_t area;
 
 };
+
+
+// /// @brief Helper for @ref lv_layer_t
+// class Layer {
+// public:
+//     void start(lv_layer_t * parent, lv_area_t * p_area, lv_color_format_t format = LV_COLOR_FORMAT_RGB565) {
+//         area = *p_area;
+//         lv_draw_layer_init(&layer, parent, format, &area);
+//     };
+
+//     void finish() {
+//         lv_draw_image_dsc_t layer_draw_dsc;
+//         lv_draw_image_dsc_init(&layer_draw_dsc);
+//         layer_draw_dsc.src = &layer;
+//         lv_draw_layer(layer.parent, &layer_draw_dsc, &area);
+//     }
+
+//     operator lv_layer_t * () {
+//         return &layer;
+//     }
+
+// private:
+//     lv_layer_t layer = {0};
+//     lv_area_t area;
+
+// };
 
 inline void createPath(lv_layer_t * layer, std::function<void(lv_vector_path_t* path, lv_vector_dsc_t* dsc)> const & body) {
     lv_vector_dsc_t * dsc = lv_vector_dsc_create(layer);
