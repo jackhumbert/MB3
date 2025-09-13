@@ -16,6 +16,13 @@ inline void lv_vector_path_cubic_to(lv_vector_path_t *path, lv_fpoint_t p1, lv_f
     lv_vector_path_cubic_to(path, &p1, &p2, &p3);
 }
 
+inline void lv_vector_path_arc_to(lv_vector_path_t * path, float radius_x, float radius_y, float rotate_angle, bool large_arc, bool clockwise, lv_fpoint_t p) {
+    lv_vector_path_arc_to(path, radius_x, radius_y, rotate_angle, large_arc, clockwise, &p);
+}
+inline void lv_vector_path_append_arc(lv_vector_path_t * path, const lv_fpoint_t & c, float radius, float start_angle, float sweep, bool pie) {
+    lv_vector_path_append_arc(path, &c, radius, start_angle, sweep, pie);
+}
+
 // lv_canvas_fill_bg(banner_draw, COLOR_BLACK, LV_OPA_0) without invalidate
 inline void clearCanvas(lv_obj_t * obj, int min_y = 0, int max_y = -1) {
     lv_canvas_t * canvas = (lv_canvas_t *)obj;
@@ -122,6 +129,8 @@ inline void clearCanvas(lv_obj_t * obj, int min_y = 0, int max_y = -1) {
 
 }
 
+constexpr auto lv_canvas_fill_bg_without_invalidation = clearCanvas;
+
 // lv_canvas_finish_layer(obj, layer) without invalidate
 inline void queueCanvasLayerDraw(lv_obj_t * obj, lv_layer_t * layer) {
     if (layer->draw_task_head == NULL) return;
@@ -139,12 +148,14 @@ inline void queueCanvasLayerDraw(lv_obj_t * obj, lv_layer_t * layer) {
     }
 }
 
+constexpr auto lv_canvas_finish_layer_without_invalidation = queueCanvasLayerDraw;
+
 /// @brief Helper for @ref lv_layer_t
 class Layer {
 public:
-    Layer(lv_layer_t * parent, lv_area_t * p_area, lv_color_format_t format = LV_COLOR_FORMAT_RGB565) : area(*p_area) {
-        area = *p_area;
-        layer = lv_draw_layer_create(parent, format, &area);
+    Layer(lv_layer_t * parent, const lv_area_t & area, lv_color_format_t format = LV_COLOR_FORMAT_RGB565) : area(area) {
+        this->area = area;
+        layer = lv_draw_layer_create(parent, format, &this->area);
     };
 
     ~Layer() {
@@ -165,31 +176,56 @@ private:
 };
 
 
-// /// @brief Helper for @ref lv_layer_t
-// class Layer {
-// public:
-//     void start(lv_layer_t * parent, lv_area_t * p_area, lv_color_format_t format = LV_COLOR_FORMAT_RGB565) {
-//         area = *p_area;
-//         lv_draw_layer_init(&layer, parent, format, &area);
-//     };
+/// @brief Helper for @ref lv_layer_t
+class CanvasLayer {
+public:
+    CanvasLayer(lv_obj_t * canvas) : canvas(canvas) {
+        lv_canvas_init_layer(canvas, &layer);
+    };
 
-//     void finish() {
-//         lv_draw_image_dsc_t layer_draw_dsc;
-//         lv_draw_image_dsc_init(&layer_draw_dsc);
-//         layer_draw_dsc.src = &layer;
-//         lv_draw_layer(layer.parent, &layer_draw_dsc, &area);
-//     }
+    ~CanvasLayer() {
+        lv_canvas_finish_layer_without_invalidation(canvas, &layer);
+    }
 
-//     operator lv_layer_t * () {
-//         return &layer;
-//     }
+    operator lv_layer_t * () {
+        return &layer;
+    }
 
-// private:
-//     lv_layer_t layer = {0};
-//     lv_area_t area;
+private:
+    lv_obj_t * canvas = nullptr;
+    lv_layer_t layer = {0};
 
-// };
+};
 
+
+/// @brief Helper for @ref lv_layer_t
+class Path {
+    public:
+        Path(lv_layer_t * layer) : layer(layer) {
+            dsc = lv_vector_dsc_create(layer);
+            path = lv_vector_path_create(LV_VECTOR_PATH_QUALITY_HIGH);
+        };
+    
+        ~Path() {
+            lv_vector_dsc_add_path(dsc, path);
+            lv_draw_vector(dsc);
+            lv_vector_path_delete(path);
+            lv_vector_dsc_delete(dsc);
+            layer = nullptr;
+        }
+    
+        operator lv_vector_path_t * () {
+            return path;
+        }
+
+        lv_vector_dsc_t * dsc = nullptr;
+        lv_vector_path_t * path = nullptr;
+    
+    private:
+        lv_layer_t * layer;
+    
+    };
+    
 inline void createPath(lv_layer_t * layer, std::function<void(lv_vector_path_t* path, lv_vector_dsc_t* dsc)> const & body) {
     lv_vector_dsc_t * dsc = lv_vector_dsc_create(layer);
     lv_vector_path_t * path = lv_vector_path_create(LV_VECTOR_PATH_QUALITY_HIGH);

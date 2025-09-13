@@ -137,12 +137,15 @@ class Widget : public lv_obj_t {
         if (code == LV_EVENT_DRAW_MAIN) {
             lv_layer_t * layer = lv_event_get_layer(e);
             draw(layer);
+        } else if (code == LV_EVENT_DRAW_POST) {
+            lv_layer_t * layer = lv_event_get_layer(e);
+            post_draw(layer);
         }
     }
 
-    virtual void draw(lv_layer_t * layer) {
-        MB3_LOG_NICE("In Widget::draw");
-    }
+    virtual void draw(lv_layer_t * layer) { }
+
+    virtual void post_draw(lv_layer_t * layer) { }
 
     const static inline lv_obj_class_t s_class = {
         .base_class = &lv_obj_class,
@@ -172,7 +175,7 @@ protected:
     }
 
     Widget(lv_obj_t * parent) {
-        MB3_LOG_NICE("begin");
+        // MB3_LOG_NICE("begin");
 
         // lv_obj_class_create_obj
         this->class_p = MY_CLASS;
@@ -198,12 +201,12 @@ protected:
         lv_obj_class.constructor_cb(&lv_obj_class, this);
 
         // run Type() constructor
-        MB3_LOG_NICE("finish");
+        // MB3_LOG_NICE("finish");
     }
 
 public:
     static Type * create(lv_obj_t * parent) {
-        MB3_LOG_NICE("begin");
+        // MB3_LOG_NICE("begin");
         // auto obj = static_cast<Type *>(lv_obj_class_create_obj(MY_CLASS, parent));
         // lv_obj_class_init_obj(obj);
         // return obj;
@@ -234,7 +237,7 @@ public:
             lv_obj_invalidate(obj);
         }
 
-        MB3_LOG_NICE("finish");
+        // MB3_LOG_NICE("finish");
 
         return obj;
     }
