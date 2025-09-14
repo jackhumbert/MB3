@@ -242,6 +242,17 @@ public:
         return obj;
     }
 
+    void invalidate_rel_area(const lv_area_t & rel_area) {
+        lv_area_t area = rel_area;
+        lv_area_t content_area;
+        lv_obj_get_content_coords(this, &content_area);
+        area.x1 += content_area.x1;
+        area.y1 += content_area.y1;
+        area.x2 += content_area.x1;
+        area.y2 += content_area.y1;
+        lv_obj_invalidate_area(this, &area);
+    }
+
     // static void * operator new(std::size_t count, lv_obj_t * parent) {
     //     return create(parent);
     // }
