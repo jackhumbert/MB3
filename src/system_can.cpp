@@ -65,10 +65,13 @@ void CAN::task_impl() {
         MB3_CAN_LOG(&message);
         // MB3_LOG_NICE("Message received: 0x%02X", message.frame.identifier);
 
-        bool known = false;
-        for (auto & can_msg_type : CanFrameTypes::types) {
-            if (can_msg_type->id() == message.frame.identifier) {
-                known = true;
+        // bool known = false;
+        // for (auto & can_msg_type : CanFrameTypes::types) {
+        auto type = CanFrameTypes::types.find(message.frame.identifier);
+        if (type != CanFrameTypes::types.end()) {
+            auto can_msg_type = type->second;
+            // if (can_msg_type->id() == message.frame.identifier) {
+                // known = true;
                 // MB3_LOG_NICE("%s message received (%d)", can_msg_type->name().c_str(), message.frame.data_length_code);
                 // memcpy(can_msg_type->data(), message.frame.data, message.frame.data_length_code);
                 memcpy(can_msg_type->data(), message.frame.data, can_msg_type->size());
@@ -83,9 +86,10 @@ void CAN::task_impl() {
                 //     message.frame.data[6], 
                 //     message.frame.data[7]
                 // );
-            }
+            // }
         }
-        if (!known) {
+        else {
+        // if (!known) {
             MB3_LOG_NICE("[CAN] Unknown message: %08X (%u): %02X %02X %02X %02X %02X %02X %02X %02X", message.frame.identifier, message.frame.data_length_code,
                 message.frame.data[0], 
                 message.frame.data[1], 
@@ -103,7 +107,7 @@ void CAN::task_impl() {
         MB3_LOG_NICE("[CAN] ESP twai_receive error: %d", res);
     }
 
-    if ((millis() - timer) > 1000) {
+    if ((millis() - timer) > 5000) {
         timer = millis();
 
         uint32_t alerts_triggered;

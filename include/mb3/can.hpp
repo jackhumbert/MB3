@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <map>
 #include <memory>
 #include <esp_heap_caps.h>
 #include <esp32-hal-log.h>
@@ -16,7 +17,8 @@ class ICanFrame;
 /// @brief The base CAN data interface
 class CanFrameTypes {
 public:
-    static inline std::vector<std::shared_ptr<ICanFrame>> types;
+    // static inline std::vector<std::shared_ptr<ICanFrame>> types;
+    static inline std::map<uint32_t, std::shared_ptr<ICanFrame>> types;
 };
 
 /// @brief The base CAN signal interface
