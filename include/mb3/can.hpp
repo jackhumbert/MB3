@@ -61,6 +61,7 @@ protected:
     size_t _size = 0;
     uint32_t _id = 0xFFFFFFFF;
     uint8_t * _data = nullptr;
+    uint64_t last_data = 0;
     std::vector<std::shared_ptr<ICanSignal>> _members;
     std::string _name;
     bool allocated = false;
@@ -95,6 +96,7 @@ public:
         //     }
         // }
 
+        /// @brief size in bits
         virtual size_t size() {
             return __size;
         }
@@ -119,8 +121,14 @@ public:
             return *this;
         }
 
+        CanSignal& operator=(const uint16_t& rhs) {
+            update(rhs);
+            parent->update_from_member(*this);
+            return *this;
+        }
+
         float apply() {
-            return ((*(Type*)_raw) * _scale) + _offset;
+            return (((float)*(Type*)_raw) * _scale) + _offset;
         }
 
         // virtual void * get() {
@@ -222,6 +230,28 @@ public:
         static size_t bit_off;
         static size_t mem_size;
 
+        // if (BYTE_CEILING(_size) == 1) {
+        //     uint8_t d = *(uint8_t*)_data;
+        //     if (d == last_data)
+        //         return;
+        //     last_data = d;
+        // } else if (BYTE_CEILING(_size) <= 2) {
+        //     uint16_t d = *(uint16_t*)_data;
+        //     if (d == last_data)
+        //         return;
+        //     last_data = d;
+        // } else if (BYTE_CEILING(_size) <= 4) {
+        //     uint32_t d = *(uint32_t*)_data;
+        //     if (d == last_data)
+        //         return;
+        //     last_data = d;
+        // } else if (BYTE_CEILING(_size) <= 8) {
+        //     uint64_t d = *(uint64_t*)_data;
+        //     if (d == last_data)
+        //         return;
+        //     last_data = d;
+        // }
+
         updated = true;
 
         for (auto & member : _members) {
@@ -244,6 +274,10 @@ public:
             } else if ((mem_size + bit_off) <= 64) {
                 member->update((*(uint64_t*)p_byte >> bit_off) & ((1UL << mem_size) - 1));
             }
+
+            // uint64_t p_byte = *(uint64_t*)&_data[byte_off];
+
+            // member->update((p_byte >> member->offset) & ((1ULL << member->size()) - 1));
         }
         for (const auto & callback : callbacks) {
             callback(*(T*)this);
@@ -254,11 +288,40 @@ public:
     }
 
     virtual void update_from_member(ICanSignal& member) {
-        uint64_t * ptr = (uint64_t*)_data;
-        *ptr &= ~(((1UL << member.size()) - 1) << member.offset);
-        *ptr |= *(uint64_t*)member.get_raw() << member.offset;
+        // uint64_t * ptr = (uint64_t*)_data;
+        // *ptr &= ~(((1UL << member.size()) - 1) << member.offset);
+        // *ptr |= *(uint64_t*)member.get_raw() << member.offset;
+
+        size_t offset = member.offset;
+        size_t byte_off = offset / 8;
+        size_t bit_off = offset % 8;
+        size_t mem_size = member.size();
+
+        if ((mem_size + bit_off) <= 8) {
+            uint8_t * p_byte = (uint8_t *)&_data[byte_off];
+            auto raw = *(uint8_t*)member.get_raw();
+            *p_byte &= ~(((1UL << mem_size) - 1) << bit_off);
+            *p_byte |= (raw << bit_off);
+        } else if ((mem_size + bit_off) <= 16) {
+            uint16_t * p_byte = (uint16_t *)&_data[byte_off];
+            auto raw = *(uint16_t*)member.get_raw();
+            *p_byte &= ~(((1UL << mem_size) - 1) << bit_off);
+            *p_byte |= (raw << bit_off);
+        } else if ((mem_size + bit_off) <= 32) {
+            uint32_t * p_byte = (uint32_t *)&_data[byte_off];
+            auto raw = *(uint32_t*)member.get_raw();
+            *p_byte &= ~(((1UL << mem_size) - 1) << bit_off);
+            *p_byte |= (raw << bit_off);
+        } else if ((mem_size + bit_off) <= 64) {
+            uint64_t * p_byte = (uint64_t *)&_data[byte_off];
+            auto raw = *(uint64_t*)member.get_raw();
+            *p_byte &= ~(((1UL << mem_size) - 1) << bit_off);
+            *p_byte |= (raw << bit_off);
+        }
+
     }
 
+    // size in bytes
     virtual size_t size() {
         return BYTE_CEILING(_size);
     }
