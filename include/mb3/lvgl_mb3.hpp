@@ -3,6 +3,7 @@
 #include <lvgl.h>
 #include <functional>
 #include <src/widgets/canvas/lv_canvas_private.h>
+#include <src/draw/lv_draw_vector_private.h>
 
 inline void lv_vector_path_move_to(lv_vector_path_t *path, lv_fpoint_t p) {
     lv_vector_path_move_to(path, &p);
@@ -190,41 +191,103 @@ public:
     operator lv_layer_t * () {
         return &layer;
     }
+    
+    lv_layer_t layer = {0};
 
 private:
     lv_obj_t * canvas = nullptr;
-    lv_layer_t layer = {0};
+
+};
+
+/// @brief Helper for @ref lv_layer_t
+class Path {
+public:
+    Path(lv_layer_t * layer) {
+        dsc.layer = layer;
+
+        dsc.current_dsc.fill_dsc.style = LV_VECTOR_DRAW_STYLE_SOLID;
+        dsc.current_dsc.fill_dsc.color = lv_color_to_32(lv_color_black(), 0xFF);
+        dsc.current_dsc.fill_dsc.opa = LV_OPA_COVER;
+        dsc.current_dsc.fill_dsc.fill_rule = LV_VECTOR_FILL_NONZERO;
+        lv_matrix_identity(&(dsc.current_dsc.fill_dsc.matrix)); /*identity matrix*/
+
+
+        dsc.current_dsc.stroke_dsc.style = LV_VECTOR_DRAW_STYLE_SOLID;
+        dsc.current_dsc.stroke_dsc.color = lv_color_to_32(lv_color_black(), 0xFF);
+        dsc.current_dsc.stroke_dsc.opa = LV_OPA_0; /*default no stroke*/
+        dsc.current_dsc.stroke_dsc.width = 1.0f;
+        dsc.current_dsc.stroke_dsc.cap = LV_VECTOR_STROKE_CAP_BUTT;
+        dsc.current_dsc.stroke_dsc.join = LV_VECTOR_STROKE_JOIN_MITER;
+        dsc.current_dsc.stroke_dsc.miter_limit = 4.0f;
+        lv_matrix_identity(&(dsc.current_dsc.stroke_dsc.matrix)); /*identity matrix*/
+
+        dsc.current_dsc.blend_mode = LV_VECTOR_BLEND_SRC_OVER;
+        if (layer)
+            dsc.current_dsc.scissor_area = layer->_clip_area;
+        lv_matrix_identity(&(dsc.current_dsc.matrix)); /*identity matrix*/
+        dsc.tasks.task_list = NULL;
+
+        path.quality = LV_VECTOR_PATH_QUALITY_HIGH;
+        lv_array_init(&path.ops, 8, sizeof(lv_vector_path_op_t));
+        lv_array_init(&path.points, 8, sizeof(lv_fpoint_t));
+    };
+
+    ~Path() {
+        lv_vector_dsc_add_path(&dsc, &path);
+        lv_draw_vector(&dsc);
+
+        lv_array_deinit(&path.ops);
+        lv_array_deinit(&path.points);
+
+        if(dsc.tasks.task_list) {
+            lv_ll_t * task_list = dsc.tasks.task_list;
+            lv_vector_for_each_destroy_tasks(task_list, NULL, NULL);
+            dsc.tasks.task_list = NULL;
+        }
+        lv_array_deinit(&(dsc.current_dsc.stroke_dsc.dash_pattern));
+    }
+
+    operator lv_vector_path_t * () {
+        return &path;
+    }
+
+    operator lv_vector_dsc_t * () {
+        return &dsc;
+    }
+
+    lv_vector_dsc_t dsc = {0};
+    lv_vector_path_t path;
 
 };
 
 
-/// @brief Helper for @ref lv_layer_t
-class Path {
-    public:
-        Path(lv_layer_t * layer) : layer(layer) {
-            dsc = lv_vector_dsc_create(layer);
-            path = lv_vector_path_create(LV_VECTOR_PATH_QUALITY_HIGH);
-        };
-    
-        ~Path() {
-            lv_vector_dsc_add_path(dsc, path);
-            lv_draw_vector(dsc);
-            lv_vector_path_delete(path);
-            lv_vector_dsc_delete(dsc);
-            layer = nullptr;
-        }
-    
-        operator lv_vector_path_t * () {
-            return path;
-        }
+// /// @brief Helper for @ref lv_layer_t
+// class Path {
+// public:
+//     Path(lv_layer_t * layer) : layer(layer) {
+//         dsc = lv_vector_dsc_create(layer);
+//         path = lv_vector_path_create(LV_VECTOR_PATH_QUALITY_HIGH);
+//     };
 
-        lv_vector_dsc_t * dsc = nullptr;
-        lv_vector_path_t * path = nullptr;
-    
-    private:
-        lv_layer_t * layer;
-    
-    };
+//     ~Path() {
+//         lv_vector_dsc_add_path(dsc, path);
+//         lv_draw_vector(dsc);
+//         lv_vector_path_delete(path);
+//         lv_vector_dsc_delete(dsc);
+//         layer = nullptr;
+//     }
+
+//     operator lv_vector_path_t * () {
+//         return path;
+//     }
+
+//     lv_vector_dsc_t * dsc = nullptr;
+//     lv_vector_path_t * path = nullptr;
+
+// private:
+//     lv_layer_t * layer;
+
+// };
     
 inline void createPath(lv_layer_t * layer, std::function<void(lv_vector_path_t* path, lv_vector_dsc_t* dsc)> const & body) {
     lv_vector_dsc_t * dsc = lv_vector_dsc_create(layer);
