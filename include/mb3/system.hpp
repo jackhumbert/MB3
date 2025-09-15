@@ -69,7 +69,9 @@ public:
         execution_times = (uint32_t *)heap_caps_calloc(execution_time_size, sizeof(uint32_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_32BIT);
     }
 
-    virtual bool setup_impl() = 0;
+    virtual bool setup_impl() {
+        return true;
+    }
 
     virtual void task_impl() {
 
@@ -205,6 +207,7 @@ public:
                 } else if (res == errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY){
                     MB3_LOG("[%6u][E][%s] Couldn't alloc memory for task\r\n", (unsigned long) (esp_timer_get_time() / 1000ULL), name.c_str());
                     // basic_log("[ERROR] Couldn't alloc memory\r\n");
+                    print_heap_d();
                 } else {
                     MB3_LOG("[%6u][E][%s] Couldn't start task: %d\r\n", (unsigned long) (esp_timer_get_time() / 1000ULL), name.c_str(), res);
                     // basic_log("[ERROR] Couldn't start task\r\n");
