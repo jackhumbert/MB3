@@ -58,8 +58,8 @@ public:
     DisplayType newValue;
 
     virtual void update() override {
-        newValue = computeDisplayValue(*p_value);
-        _hasChanged = displayValue != newValue;
+        newValue = computeDisplayValue((InputType)*p_value);
+        _hasChanged |= displayValue != newValue;
         displayValue = newValue;
     }
 
