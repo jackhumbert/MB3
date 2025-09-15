@@ -205,7 +205,7 @@ protected:
     }
 
 public:
-    static Type * create(lv_obj_t * parent) {
+    static std::shared_ptr<Type> create(lv_obj_t * parent) {
         // MB3_LOG_NICE("begin");
         // auto obj = static_cast<Type *>(lv_obj_class_create_obj(MY_CLASS, parent));
         // lv_obj_class_init_obj(obj);
@@ -239,7 +239,7 @@ public:
 
         // MB3_LOG_NICE("finish");
 
-        return obj;
+        return std::shared_ptr<Type>(obj);
     }
 
     void invalidate_rel_area(const lv_area_t & rel_area) {
