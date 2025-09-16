@@ -134,17 +134,24 @@ class Widget : public lv_obj_t {
 
     virtual void on_event(lv_event_t * e) {
         auto code = lv_event_get_code(e);
-        if (code == LV_EVENT_DRAW_MAIN) {
+        if (code == LV_EVENT_DRAW_MAIN_BEGIN) {
+            lv_layer_t * layer = lv_event_get_layer(e);
+            draw_begin(layer);
+        } else if (code == LV_EVENT_DRAW_MAIN) {
             lv_layer_t * layer = lv_event_get_layer(e);
             draw(layer);
+        } else if (code == LV_EVENT_DRAW_MAIN_END) {
+            lv_layer_t * layer = lv_event_get_layer(e);
+            draw_end(layer);
         } else if (code == LV_EVENT_DRAW_POST) {
             lv_layer_t * layer = lv_event_get_layer(e);
             post_draw(layer);
         }
     }
 
+    virtual void draw_begin(lv_layer_t * layer) { }
     virtual void draw(lv_layer_t * layer) { }
-
+    virtual void draw_end(lv_layer_t * layer) { }
     virtual void post_draw(lv_layer_t * layer) { }
 
     const static inline lv_obj_class_t s_class = {
@@ -205,7 +212,9 @@ protected:
     }
 
 public:
-    static std::shared_ptr<Type> create(lv_obj_t * parent) {
+
+    template<typename... _Args>
+    static std::shared_ptr<Type> create(_Args... __args) {
         // MB3_LOG_NICE("begin");
         // auto obj = static_cast<Type *>(lv_obj_class_create_obj(MY_CLASS, parent));
         // lv_obj_class_init_obj(obj);
@@ -214,7 +223,7 @@ public:
         auto obj = (Type *)lv_malloc_zeroed(sizeof(Type));
         if (obj == NULL) return NULL;
 
-        new (obj) Type(parent);
+        new (obj) Type(std::forward<_Args>(__args)...);
 
         // lv_obj_class_init_obj second half
         lv_obj_enable_style_refresh(true);
@@ -227,11 +236,11 @@ public:
             lv_group_add_obj(def_group, obj);
         }
 
-        if (parent) {
+        if (obj->parent) {
             /*Call the ancestor's event handler to the parent to notify it about the new child.
             *Also triggers layout update*/
-            lv_obj_send_event(parent, LV_EVENT_CHILD_CHANGED, obj);
-            lv_obj_send_event(parent, LV_EVENT_CHILD_CREATED, obj);
+            lv_obj_send_event(obj->parent, LV_EVENT_CHILD_CHANGED, obj);
+            lv_obj_send_event(obj->parent, LV_EVENT_CHILD_CREATED, obj);
 
             /*Invalidate the area if not screen created*/
             lv_obj_invalidate(obj);
