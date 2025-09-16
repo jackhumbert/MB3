@@ -218,7 +218,8 @@ public:
 
     static void task(void * parameter) {
         auto instance = static_cast<ISystem *>(parameter);
-        MB3_LOG("[%6u][I][%s] System Task Started\r\n", (unsigned long) (esp_timer_get_time() / 1000ULL), instance->name.c_str());
+        auto hi = instance->stacksize - uxTaskGetStackHighWaterMark(instance->taskHandle);
+        MB3_LOG("[%6u][I][%s] System Task Started - highwater: 0x%04X\r\n", (unsigned long) (esp_timer_get_time() / 1000ULL), instance->name.c_str(), hi);
         instance->xLastWakeTime = xTaskGetTickCount();
         int64_t start_time;
 
