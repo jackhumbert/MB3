@@ -3,8 +3,13 @@
 #include <vector>
 #include <memory>
 
+class IUpdatable {
+public:
+    virtual void update(void) = 0;
+};
+
 /// @brief The base observable interface
-class IObservable {
+class IObservable : public IUpdatable {
 public:
     virtual ~IObservable() = default;
     virtual void update() = 0;
