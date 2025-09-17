@@ -207,49 +207,96 @@ protected:
         // lv_obj_construct(obj->class_p, obj);
         lv_obj_class.constructor_cb(&lv_obj_class, this);
 
-        // run Type() constructor
-        // MB3_LOG_NICE("finish");
+        // usually Type constructor is called here
+
+        // not sure this will work here
+        // lv_obj_class_init_obj second half
+        lv_obj_enable_style_refresh(true);
+        lv_obj_refresh_style(this, LV_PART_ANY, LV_STYLE_PROP_ANY);
+
+        lv_obj_refresh_self_size(this);
+
+        lv_group_t * def_group = lv_group_get_default();
+        if (def_group && lv_obj_is_group_def(this)) {
+            lv_group_add_obj(def_group, this);
+        }
+
+        if (parent) {
+            /*Call the ancestor's event handler to the parent to notify it about the new child.
+            *Also triggers layout update*/
+            lv_obj_send_event(parent, LV_EVENT_CHILD_CHANGED, this);
+            lv_obj_send_event(parent, LV_EVENT_CHILD_CREATED, this);
+
+            /*Invalidate the area if not screen created*/
+            lv_obj_invalidate(this);
+        }
     }
 
 public:
 
-    template<typename... _Args>
-    static std::shared_ptr<Type> create(_Args... __args) {
-        // MB3_LOG_NICE("begin");
-        // auto obj = static_cast<Type *>(lv_obj_class_create_obj(MY_CLASS, parent));
-        // lv_obj_class_init_obj(obj);
-        // return obj;
-        
-        auto obj = (Type *)lv_malloc_zeroed(sizeof(Type));
-        if (obj == NULL) return NULL;
-
-        new (obj) Type(std::forward<_Args>(__args)...);
-
-        // lv_obj_class_init_obj second half
-        lv_obj_enable_style_refresh(true);
-        lv_obj_refresh_style(obj, LV_PART_ANY, LV_STYLE_PROP_ANY);
-
-        lv_obj_refresh_self_size(obj);
-
-        lv_group_t * def_group = lv_group_get_default();
-        if (def_group && lv_obj_is_group_def(obj)) {
-            lv_group_add_obj(def_group, obj);
-        }
-
-        if (obj->parent) {
-            /*Call the ancestor's event handler to the parent to notify it about the new child.
-            *Also triggers layout update*/
-            lv_obj_send_event(obj->parent, LV_EVENT_CHILD_CHANGED, obj);
-            lv_obj_send_event(obj->parent, LV_EVENT_CHILD_CREATED, obj);
-
-            /*Invalidate the area if not screen created*/
-            lv_obj_invalidate(obj);
-        }
-
-        // MB3_LOG_NICE("finish");
-
-        return std::shared_ptr<Type>(obj);
+    static void* operator new(std::size_t count) {
+        // std::cout << "custom new for size " << count << '\n';
+        // return ::operator new(count);
+        // log_e("Widget new 0x%X bytes", count);
+        return lv_malloc_zeroed(count);
     }
+ 
+    static void operator delete(void* ptr) noexcept {
+        // std::puts("3) delete(void*)");
+        // std::free(ptr);
+        lv_free(ptr);
+    }
+
+
+    // custom placement new
+    static void* operator new(std::size_t count, bool b) {
+        // std::cout << "custom placement new called, b = " << b << '\n';
+        return ::operator new(count);
+    }
+ 
+    // custom placement delete
+    static void operator delete(void* ptr, bool b) {
+        // std::cout << "custom placement delete called, b = " << b << '\n';
+        ::operator delete(ptr);
+    }
+
+    // template<typename... _Args>
+    // static std::shared_ptr<Type> create(_Args... __args) {
+    //     // MB3_LOG_NICE("begin");
+    //     // auto obj = static_cast<Type *>(lv_obj_class_create_obj(MY_CLASS, parent));
+    //     // lv_obj_class_init_obj(obj);
+    //     // return obj;
+        
+    //     auto obj = (Type *)lv_malloc_zeroed(sizeof(Type));
+    //     if (obj == NULL) return NULL;
+
+    //     new (obj) Type(std::forward<_Args>(__args)...);
+
+    //     // lv_obj_class_init_obj second half
+    //     lv_obj_enable_style_refresh(true);
+    //     lv_obj_refresh_style(obj, LV_PART_ANY, LV_STYLE_PROP_ANY);
+
+    //     lv_obj_refresh_self_size(obj);
+
+    //     lv_group_t * def_group = lv_group_get_default();
+    //     if (def_group && lv_obj_is_group_def(obj)) {
+    //         lv_group_add_obj(def_group, obj);
+    //     }
+
+    //     if (obj->parent) {
+    //         /*Call the ancestor's event handler to the parent to notify it about the new child.
+    //         *Also triggers layout update*/
+    //         lv_obj_send_event(obj->parent, LV_EVENT_CHILD_CHANGED, obj);
+    //         lv_obj_send_event(obj->parent, LV_EVENT_CHILD_CREATED, obj);
+
+    //         /*Invalidate the area if not screen created*/
+    //         lv_obj_invalidate(obj);
+    //     }
+
+    //     // MB3_LOG_NICE("finish");
+
+    //     return std::shared_ptr<Type>(obj);
+    // }
 
     void invalidate_rel_area(const lv_area_t & rel_area) {
         lv_area_t area = rel_area;
