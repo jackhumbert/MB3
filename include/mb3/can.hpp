@@ -9,6 +9,7 @@
 #include <string>
 #include <functional>
 #include <cmath>
+#include <mb3/observable.hpp>
 
 #define BYTE_CEILING(b) (((b - 1) / 8) + 1)
 
@@ -33,10 +34,22 @@ public:
     virtual void * get_raw() = 0;
     virtual operator float() = 0;
 
+    template <typename ReturnType>
+    ReturnType get() {
+        return *(ReturnType*)get_raw();
+    }
+
     size_t offset = 0;
     std::string name;
     bool changed = false;
     ICanFrame * parent = nullptr;
+
+    struct Callback : std::function<void(ICanSignal&)> {
+        Callback(const std::function<void(ICanSignal&)> & func) : std::function<void(ICanSignal&)>(func) { }
+        Callback(IUpdatable * updatable) : std::function<void(ICanSignal&)>(std::bind(&IUpdatable::update, updatable)) { }
+    };
+
+    std::vector<Callback> callbacks;
 };
 
 class ICanFrame {
@@ -73,7 +86,7 @@ public:
     template <typename Type = uint8_t>
     class CanSignal : public ICanSignal {
     public:
-        using CanSignalCallbackType = std::function<void(CanSignal&)>;
+        // using CanSignalCallbackType = std::function<void(CanSignal&)>;
 
         CanSignal(size_t size = 1, float scale = 1.0, float offset = 0.0) : __size(size), _scale(scale), _offset(offset) {
             // T::CanSignal?
@@ -107,11 +120,6 @@ public:
 
         virtual operator float() override {
             return apply();
-        }
-
-        template <typename ReturnType>
-        ReturnType get() {
-            return *(ReturnType*)_raw;
         }
 
         CanSignal& operator=(const float& rhs) {
@@ -179,8 +187,6 @@ public:
                 }
             }
         }
-
-        std::vector<CanSignalCallbackType> callbacks;
 
     private:
         // static constexpr size_t __size = Size;
