@@ -2,12 +2,9 @@
 
 #include <vector>
 #include <memory>
-
-class IUpdatable {
-public:
-    virtual void update(void) = 0;
-};
-
+#include <mb3/updatable.hpp>
+#include <mb3/can.hpp>
+ 
 /// @brief The base observable interface
 class IObservable : public IUpdatable {
 public:
@@ -56,6 +53,10 @@ public:
     TObservable(DataType * p_value) : p_value(p_value) {
         ObservableManager::add(this);
         update();
+        if constexpr (std::is_base_of<ICanSignal, T>::value) {
+            auto signal = static_cast<ICanSignal*>(p_value);
+            signal->callbacks.emplace_back(this);
+        }
     }
 
     virtual ~TObservable() override = default;

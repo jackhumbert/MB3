@@ -9,7 +9,8 @@
 #include <string>
 #include <functional>
 #include <cmath>
-#include <mb3/observable.hpp>
+#include <mb3/updatable.hpp>
+#include <cxxabi.h>
 
 #define BYTE_CEILING(b) (((b - 1) / 8) + 1)
 
@@ -220,8 +221,15 @@ public:
             _members.emplace_back(member);
         }
         _size = pos;
+        auto byte_size = BYTE_CEILING(_size);
+        if (byte_size != 1 && byte_size != 2 && byte_size != 4 && byte_size != 8) {
+            int status;
+            char * demangled = abi::__cxa_demangle(typeid(T).name(), 0, 0, &status);
+            log_e("%s byte size not aligned: %d (%d)", demangled, byte_size, _size);
+            free(demangled);
+        }
         // _data = (uint8_t*)heap_caps_calloc(1, BYTE_CEILING(_size), MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
-        _data = (uint8_t*)heap_caps_calloc(1, BYTE_CEILING(_size), MALLOC_CAP_8BIT | MALLOC_CAP_DMA);
+        _data = (uint8_t*)heap_caps_calloc(1, byte_size, MALLOC_CAP_8BIT | MALLOC_CAP_DMA);
         if (_data != nullptr)
             allocated = true;
         else {
