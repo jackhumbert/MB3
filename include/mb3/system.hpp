@@ -219,9 +219,10 @@ public:
     static void task(void * parameter) {
         auto instance = static_cast<ISystem *>(parameter);
         auto hi = instance->stacksize - uxTaskGetStackHighWaterMark(instance->taskHandle);
-        MB3_LOG("[%6u][I][%s] System Task Started - highwater: 0x%04X\r\n", (unsigned long) (esp_timer_get_time() / 1000ULL), instance->name.c_str(), hi);
+        MB3_LOG("[%6u][I][%s] System Task Started - Highwater: 0x%04X\r\n", (unsigned long) (esp_timer_get_time() / 1000ULL), instance->name.c_str(), hi);
         instance->xLastWakeTime = xTaskGetTickCount();
         int64_t start_time;
+        bool first = true;
 
         for (;;) {
             vTaskDelayUntil(&instance->xLastWakeTime, instance->frequency);
@@ -230,6 +231,11 @@ public:
             instance->task_impl();
             esp_task_wdt_reset();
             instance->add_time(esp_timer_get_time() - start_time);
+            if (first) {
+                first = false;
+                auto hi = instance->stacksize - uxTaskGetStackHighWaterMark(instance->taskHandle);
+                MB3_LOG("[%6u][I][%s] Highwater for first loop: 0x%04X\r\n", (unsigned long) (esp_timer_get_time() / 1000ULL), instance->name.c_str(), hi);
+            }
         }
     }
     
