@@ -9,7 +9,9 @@
 class IObservable : public IUpdatable {
 public:
     virtual ~IObservable() = default;
-    virtual void update() = 0;
+    virtual void update() { 
+        _hasChanged = true;
+    }
     virtual bool hasChanged() {
         if (_hasChanged) {
             _hasChanged = false;

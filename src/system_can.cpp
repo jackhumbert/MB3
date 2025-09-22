@@ -5,8 +5,6 @@
 #include <config.hpp>
 #include MB3_CAN_LOG_INCLUDE
 
-bool CAN::hasRX = false;
-
 static CanLog message = {0};
 static uint64_t timer;
 
@@ -39,6 +37,10 @@ bool CAN::setup_impl() {
         return false;
     }
 
+    // gpio_hold_en(MB3_CAN_TX);
+    // gpio_hold_en(MB3_CAN_RX);
+    // gpio_deep_sleep_hold_en();
+
     // Start TWAI driver
     if (twai_start() == ESP_OK) {
         MB3_LOG_NICE("[CAN] Driver started");
@@ -60,6 +62,7 @@ void CAN::task_impl() {
     esp_err_t res = ESP_OK;
     while (res = twai_receive(&message.frame, 0), res == ESP_OK) {
         hasRX = true;
+        o_status.update();
         message.timestamp = esp_timer_get_time();
         // SDCard::log_can_message(&message);
         MB3_CAN_LOG(&message);
@@ -103,7 +106,9 @@ void CAN::task_impl() {
         }
     }
 
-    if (res != ESP_ERR_TIMEOUT) {
+    if (res == ESP_ERR_TIMEOUT) {
+        hasRX = false;
+    } else {
         MB3_LOG_NICE("[CAN] ESP twai_receive error: %d", res);
     }
 
@@ -138,7 +143,10 @@ void CAN::task_impl() {
         if (alerts_triggered) {
             twai_status_info_t status;
             if (esp_err_t r = twai_get_status_info(&status); r == ESP_OK) {
-                if (status.state == TWAI_STATE_STOPPED) MB3_LOG_NICE("[CAN] * TWAI_STATE_STOPPED");
+                if (status.state == TWAI_STATE_STOPPED) { 
+                    MB3_LOG_NICE("[CAN] * TWAI_STATE_STOPPED");
+                    twai_start();
+                }
                 // if (status.state == TWAI_STATE_RUNNING) MB3_LOG_NICE("[CAN] * TWAI_STATE_RUNNING");
                 if (status.state == TWAI_STATE_BUS_OFF) {
                     MB3_LOG_NICE("[CAN] * TWAI_STATE_BUS_OFF");
