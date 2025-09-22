@@ -42,3 +42,11 @@
 #ifndef MB3_CAN_LOG
 #define MB3_CAN_LOG(msg) do {} while(0)
 #endif
+
+#ifndef MB3_CAN_RX_QUEUE_LEN
+#define MB3_CAN_RX_QUEUE_LEN 500
+#endif
+
+#ifndef MB3_CAN_TX_QUEUE_LEN
+#define MB3_CAN_TX_QUEUE_LEN 500
+#endif

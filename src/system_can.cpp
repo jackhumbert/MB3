@@ -20,8 +20,8 @@ bool CAN::setup_impl() {
         .rx_io = MB3_CAN_RX,       
         .clkout_io = TWAI_IO_UNUSED, 
         .bus_off_io = TWAI_IO_UNUSED,
-        .tx_queue_len = 500, 
-        .rx_queue_len = 500, // affects PSRAM
+        .tx_queue_len = MB3_CAN_TX_QUEUE_LEN, 
+        .rx_queue_len = MB3_CAN_RX_QUEUE_LEN, // affects PSRAM
         // .alerts_enabled = TWAI_ALERT_ALL, 
         .alerts_enabled = TWAI_ALERT_ALL & ~TWAI_ALERT_TX_IDLE & ~TWAI_ALERT_TX_SUCCESS & ~TWAI_ALERT_RX_DATA,  
         .clkout_divider = 0,          
