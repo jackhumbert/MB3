@@ -26,9 +26,7 @@ public:
 /// @brief The base CAN signal interface
 class ICanSignal {
 public:
-    ICanSignal() {
-        
-    }
+    ICanSignal() {}
 
     virtual size_t size() = 0;
     virtual void update(uint64_t new_value) = 0;
@@ -53,6 +51,13 @@ public:
     std::vector<Callback> callbacks;
 };
 
+template <typename SignalType = uint8_t>
+class TCanSignal : public ICanSignal {
+public:
+    TCanSignal() : ICanSignal() {}
+    virtual operator SignalType() = 0;
+};
+
 class ICanFrame {
 public:
     virtual void update() = 0;
@@ -65,10 +70,10 @@ public:
 };
 
 /// @brief A CAN frame base class
-/// @tparam T derived type (for static access)
-template<typename T>
+/// @tparam FrameType derived type (for static access)
+template<typename FrameType>
 class CanFrame : public ICanFrame {
-    using CanFrameCallbackType = std::function<void(T&)>;
+    using CanFrameCallbackType = std::function<void(FrameType&)>;
 protected:
     static inline std::vector<std::shared_ptr<ICanSignal>> __members;
 
@@ -83,14 +88,21 @@ protected:
 public:
 
     /// @brief The main updatable implementation
-    /// @tparam Type What the member data should be stored as
-    template <typename Type = uint8_t>
+    /// @tparam SignalType What the member data should be stored as
+    template <typename SignalType = uint8_t>
     class CanSignal : public ICanSignal {
+    // idk why this doesn't work
+    // class CanSignal : public TCanSignal<SignalType> {
     public:
         // using CanSignalCallbackType = std::function<void(CanSignal&)>;
 
-        CanSignal(size_t size = 1, float scale = 1.0, float offset = 0.0) : __size(size), _scale(scale), _offset(offset) {
-            // T::CanSignal?
+        CanSignal(size_t size = 1, float scale = 1.0, float offset = 0.0) : 
+            // TCanSignal<SignalType>(),
+            __size(size), 
+            _scale(scale), 
+            _offset(offset) 
+        {
+            // FrameType::CanSignal?
             __members.push_back(std::shared_ptr<CanSignal>(this));
             _raw = (uint8_t*)heap_caps_calloc(1, BYTE_CEILING(size), MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
             // _raw = (uint8_t*)heap_caps_calloc(1, BYTE_CEILING(size), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -99,10 +111,10 @@ public:
             }
         }
 
-        CanSignal(const std::string& str) : CanSignal() {
-            // log("CanSignal(str)");
-            name = str;
-        }
+        // CanSignal(const std::string& str) : CanSignal() {
+        //     // log("CanSignal(str)");
+        //     name = str;
+        // }
 
         // ~CanSignal() {
         //     if (_raw) {
@@ -115,9 +127,14 @@ public:
             return __size;
         }
 
-        // Type& operator*() {
-        //     return *(Type*)_raw;
+        // SignalType& operator*() {
+        //     return *(SignalType*)_raw;
         // }
+
+        virtual operator SignalType() {
+        // virtual operator SignalType() override {
+            return *(SignalType*)get_raw();
+        }
 
         virtual operator float() override {
             return apply();
@@ -137,7 +154,16 @@ public:
         }
 
         float apply() {
-            return (((float)*(Type*)_raw) * _scale) + _offset;
+            if constexpr (
+                std::is_same_v<SignalType, uint8_t> ||
+                std::is_same_v<SignalType, uint16_t> || 
+                std::is_same_v<SignalType, uint32_t> || 
+                std::is_same_v<SignalType, uint64_t> || 
+                std::is_same_v<SignalType, float>) {
+                return (((float)*(SignalType*)_raw) * _scale) + _offset;
+            } else {
+                return *(float*)_raw;
+            }
         }
 
         // virtual void * get() {
@@ -196,7 +222,8 @@ public:
         uint8_t * _raw = nullptr;
         float _scale = 1.0;
         float _offset = 0.0;
-    };
+
+    }; // end CanSignal class
 
     CanFrame(const std::string& str, uint32_t id) : _id(id), _name(str)  {
         // log("CanFrame()");
@@ -224,7 +251,7 @@ public:
         auto byte_size = BYTE_CEILING(_size);
         if (byte_size != 1 && byte_size != 2 && byte_size != 4 && byte_size != 8) {
             int status;
-            char * demangled = abi::__cxa_demangle(typeid(T).name(), 0, 0, &status);
+            char * demangled = abi::__cxa_demangle(typeid(FrameType).name(), 0, 0, &status);
             log_e("%s byte size not aligned: %d (%d)", demangled, byte_size, _size);
             free(demangled);
         }
@@ -294,7 +321,7 @@ public:
             // member->update((p_byte >> member->offset) & ((1ULL << member->size()) - 1));
         }
         for (const auto & callback : callbacks) {
-            callback(*(T*)this);
+            callback(*(FrameType*)this);
         }
         for (auto & member : _members) {
             member->changed = false;

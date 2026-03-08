@@ -45,17 +45,14 @@ public:
 /// @tparam D The primitive display type for formatting, math
 /// @tparam T The optional smart type @ref ICanSignal
 /// @tparam I The input type for computeDisplayValue
-template <typename D, typename T = D, typename I = D>
+template <typename DisplayType, typename DataType = DisplayType, typename InputType = DisplayType>
 class TObservable : public IObservable {
 public:
-    using DisplayType = D;
-    using DataType = T;
-    using InputType = I;
 
     TObservable(DataType * p_value) : p_value(p_value) {
         ObservableManager::add(this);
         update();
-        if constexpr (std::is_base_of<ICanSignal, T>::value) {
+        if constexpr (std::is_base_of<ICanSignal, DataType>::value) {
             auto signal = static_cast<ICanSignal*>(p_value);
             signal->callbacks.emplace_back(this);
         }
@@ -67,7 +64,7 @@ public:
 
     virtual void update() override {
         newValue = computeDisplayValue((InputType)*p_value);
-        _hasChanged |= displayValue != newValue;
+        _hasChanged |= !(displayValue == newValue);
         displayValue = newValue;
     }
 
@@ -84,7 +81,7 @@ public:
     }
 
     DataType * p_value;
-    DisplayType displayValue = 0;
+    DisplayType displayValue; // = 0;
 };
 
 template <typename D, typename T = D, typename I = D>
