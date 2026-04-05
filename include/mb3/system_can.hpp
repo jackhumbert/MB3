@@ -11,6 +11,8 @@ public:
 
     virtual bool setup_impl();
     virtual void task_impl();
+    
+    static bool perform_hard_reset();
 
     static inline bool hasRX = false;
     static inline IObservable o_status;

@@ -7,6 +7,73 @@
 
 static CanLog message = {0};
 static uint64_t timer;
+static uint32_t last_recovery_time = 0;
+static const uint32_t RECOVERY_DEBOUNCE_MS = 1000; // Minimum 1 second between recoveries to handle WiFi interference
+static uint32_t last_hard_reset_time = 0;
+static const uint32_t HARD_RESET_DEBOUNCE_MS = 10000; // Minimum 10 seconds between hard resets to avoid thrashing
+static uint32_t recovery_attempt_count = 0;
+static const uint32_t RECOVERY_ATTEMPTS_THRESHOLD = 5; // Trigger hard reset after 5 failed soft recoveries
+static uint32_t consecutive_bus_errors = 0;
+static const uint32_t BUS_ERROR_THRESHOLD = 10; // Trigger recovery after 10 consecutive BUS_ERROR alerts
+
+bool CAN::perform_hard_reset() {
+    MB3_LOG_NICE("[CAN] *** HARD RESET: Uninstalling and reinstalling TWAI driver ***");
+    
+    // Stop the driver first
+    esp_err_t stop_res = twai_stop();
+    if (stop_res != ESP_OK && stop_res != ESP_ERR_INVALID_STATE) {
+        MB3_LOG_NICE("[CAN] Hard reset: twai_stop() returned %d", stop_res);
+    }
+    
+    // Give it a moment to stop
+    vTaskDelay(pdMS_TO_TICKS(100));
+    
+    // Uninstall the driver
+    esp_err_t uninstall_res = twai_driver_uninstall();
+    if (uninstall_res != ESP_OK) {
+        MB3_LOG_NICE("[CAN] Hard reset: twai_driver_uninstall() failed: %d", uninstall_res);
+        return false;
+    }
+    
+    MB3_LOG_NICE("[CAN] Hard reset: Driver uninstalled, waiting 200ms before reinstall");
+    vTaskDelay(pdMS_TO_TICKS(200));
+    
+    // Reinstall the driver with same config as in setup_impl
+    twai_timing_config_t t_config = MB3_CAN_TIMING;
+    twai_general_config_t g_config = {
+        .mode = MB3_CAN_MODE,
+        .tx_io = MB3_CAN_TX, 
+        .rx_io = MB3_CAN_RX,       
+        .clkout_io = TWAI_IO_UNUSED, 
+        .bus_off_io = TWAI_IO_UNUSED,
+        .tx_queue_len = MB3_CAN_TX_QUEUE_LEN, 
+        .rx_queue_len = MB3_CAN_RX_QUEUE_LEN,
+        .alerts_enabled = TWAI_ALERT_ALL & ~TWAI_ALERT_TX_IDLE & ~TWAI_ALERT_TX_SUCCESS & ~TWAI_ALERT_RX_DATA & ~TWAI_ALERT_RX_FIFO_OVERRUN,  
+        .clkout_divider = 0,          
+        .intr_flags = ESP_INTR_FLAG_LEVEL1
+    };
+    twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
+    
+    esp_err_t install_res = twai_driver_install(&g_config, &t_config, &f_config);
+    if (install_res != ESP_OK) {
+        MB3_LOG_NICE("[CAN] Hard reset: twai_driver_install() failed: %d", install_res);
+        return false;
+    }
+    
+    MB3_LOG_NICE("[CAN] Hard reset: Driver reinstalled, starting...");
+    
+    esp_err_t start_res = twai_start();
+    if (start_res != ESP_OK) {
+        MB3_LOG_NICE("[CAN] Hard reset: twai_start() failed: %d", start_res);
+        return false;
+    }
+    
+    MB3_LOG_NICE("[CAN] *** HARD RESET COMPLETE: Driver back online ***");
+    recovery_attempt_count = 0;
+    last_hard_reset_time = millis();
+    last_recovery_time = millis();
+    return true;
+}
 
 bool CAN::setup_impl() {
 
@@ -21,7 +88,7 @@ bool CAN::setup_impl() {
         .tx_queue_len = MB3_CAN_TX_QUEUE_LEN, 
         .rx_queue_len = MB3_CAN_RX_QUEUE_LEN, // affects PSRAM
         // .alerts_enabled = TWAI_ALERT_ALL, 
-        .alerts_enabled = TWAI_ALERT_ALL & ~TWAI_ALERT_TX_IDLE & ~TWAI_ALERT_TX_SUCCESS & ~TWAI_ALERT_RX_DATA,  
+        .alerts_enabled = TWAI_ALERT_ALL & ~TWAI_ALERT_TX_IDLE & ~TWAI_ALERT_TX_SUCCESS & ~TWAI_ALERT_RX_DATA & ~TWAI_ALERT_RX_FIFO_OVERRUN,  
         .clkout_divider = 0,          
         .intr_flags = ESP_INTR_FLAG_LEVEL1
     };
@@ -60,6 +127,99 @@ bool CAN::setup_impl() {
 
 void CAN::task_impl() {
     esp_err_t res = ESP_OK;
+
+    // Check for CAN alerts immediately on each task cycle for fast error recovery
+    // But debounce recoveries to prevent constant cycling
+    uint32_t current_time = millis();
+    uint32_t alerts_triggered;
+    if (twai_read_alerts(&alerts_triggered, 0) == ESP_OK) {
+        bool should_recover = false;
+        const char* recovery_reason = nullptr;
+        
+        // Check for error counters maxing out (indicates driver is stuck)
+        twai_status_info_t status_check;
+        if (twai_get_status_info(&status_check) == ESP_OK) {
+            if ((status_check.tx_error_counter >= 255 || status_check.rx_error_counter >= 255) &&
+                (current_time - last_hard_reset_time) > HARD_RESET_DEBOUNCE_MS) {
+                MB3_LOG_NICE("[CAN] ERROR COUNTERS MAXED (TX:%d RX:%d) - triggering hard reset", status_check.tx_error_counter, status_check.rx_error_counter);
+                perform_hard_reset();
+                return;
+            }
+        }
+        
+        // Track repeated BUS_ERROR alerts (WiFi interference pattern)
+        if (alerts_triggered & TWAI_ALERT_BUS_ERROR) {
+            consecutive_bus_errors++;
+            if (consecutive_bus_errors >= BUS_ERROR_THRESHOLD && 
+                (current_time - last_recovery_time) > RECOVERY_DEBOUNCE_MS) {
+                MB3_LOG_NICE("[CAN] BUS_ERROR escalating (%d consecutive) - initiating recovery", consecutive_bus_errors);
+                should_recover = true;
+                recovery_reason = "ESCALATING_BUS_ERROR";
+                consecutive_bus_errors = 0;
+            }
+        } else {
+            consecutive_bus_errors = 0; // Reset on other alerts
+        }
+        
+        // Only check for critical states that require immediate action
+        if (alerts_triggered & TWAI_ALERT_BUS_OFF) {
+            should_recover = true;
+            recovery_reason = "BUS_OFF";
+            consecutive_bus_errors = 0;
+        } else if (alerts_triggered & TWAI_ALERT_ERR_PASS) {
+            // Only recover if we haven't recovered recently (debouncing)
+            if (current_time - last_recovery_time > RECOVERY_DEBOUNCE_MS) {
+                should_recover = true;
+                recovery_reason = "ERR_PASS";
+            }
+            consecutive_bus_errors = 0;
+        }
+        
+        if (should_recover) {
+            twai_status_info_t status;
+            if (twai_get_status_info(&status) == ESP_OK) {
+                // For escalating BUS_ERROR from WiFi, be more aggressive - go straight to hard reset
+                if (strcmp(recovery_reason, "ESCALATING_BUS_ERROR") == 0) {
+                    if (recovery_attempt_count >= 2 && 
+                        (current_time - last_hard_reset_time) > HARD_RESET_DEBOUNCE_MS) {
+                        MB3_LOG_NICE("[CAN] Escalating BUS_ERROR after %d soft attempts - triggering hard reset", recovery_attempt_count);
+                        perform_hard_reset();
+                        return;
+                    }
+                }
+                
+                if (status.state == TWAI_STATE_BUS_OFF) {
+                    MB3_LOG_NICE("[CAN] RECOVERY: %s - Initiating recovery from BUS_OFF (TX:%d RX:%d)", recovery_reason, status.tx_error_counter, status.rx_error_counter);
+                    twai_initiate_recovery();
+                    recovery_attempt_count++;
+                    last_recovery_time = current_time;
+                } else if (status.state == TWAI_STATE_STOPPED) {
+                    MB3_LOG_NICE("[CAN] RECOVERY: %s - Restarting TWAI from STOPPED state", recovery_reason);
+                    twai_start();
+                    recovery_attempt_count++;
+                    last_recovery_time = current_time;
+                } else if (status.state == TWAI_STATE_RECOVERING) {
+                    MB3_LOG_NICE("[CAN] RECOVERY: %s - Already in recovery, error counters (TX:%d RX:%d)", recovery_reason, status.tx_error_counter, status.rx_error_counter);
+                    recovery_attempt_count++;
+                    last_recovery_time = current_time;
+                } else if (status.state == TWAI_STATE_RUNNING) {
+                    // Bus seems to be running but BUS_ERROR keeps triggering - this is WiFi noise
+                    // Just log it but try to recover anyway
+                    MB3_LOG_NICE("[CAN] RECOVERY: %s - Bus running but errors detected (TX:%d RX:%d)", recovery_reason, status.tx_error_counter, status.rx_error_counter);
+                    recovery_attempt_count++;
+                    last_recovery_time = current_time;
+                }
+                
+                // Check if recovery attempts are escalating - trigger hard reset if stuck
+                if (recovery_attempt_count >= RECOVERY_ATTEMPTS_THRESHOLD && 
+                    (current_time - last_hard_reset_time) > HARD_RESET_DEBOUNCE_MS) {
+                    MB3_LOG_NICE("[CAN] Recovery stuck after %d attempts, triggering hard reset", recovery_attempt_count);
+                    perform_hard_reset();
+                }
+            }
+        }
+    }
+
     while (res = twai_receive(&message.frame, 0), res == ESP_OK) {
         hasRX = true;
         o_status.update();
@@ -143,28 +303,23 @@ void CAN::task_impl() {
         if (alerts_triggered) {
             twai_status_info_t status;
             if (esp_err_t r = twai_get_status_info(&status); r == ESP_OK) {
-                if (status.state == TWAI_STATE_STOPPED) { 
-                    MB3_LOG_NICE("[CAN] * TWAI_STATE_STOPPED");
-                    twai_start();
+                // Only log state changes and critical issues, don't auto-recover here
+                // since we have immediate recovery above
+                if (status.state == TWAI_STATE_STOPPED) {
+                    MB3_LOG_NICE("[CAN] * TWAI_STATE_STOPPED (periodic check)");
                 }
-                // if (status.state == TWAI_STATE_RUNNING) MB3_LOG_NICE("[CAN] * TWAI_STATE_RUNNING");
                 if (status.state == TWAI_STATE_BUS_OFF) {
-                    MB3_LOG_NICE("[CAN] * TWAI_STATE_BUS_OFF");
-                    twai_initiate_recovery();
+                    MB3_LOG_NICE("[CAN] * TWAI_STATE_BUS_OFF (periodic check)");
                 }
                 if (status.state == TWAI_STATE_RECOVERING) MB3_LOG_NICE("[CAN] * TWAI_STATE_RECOVERING");
-                if (status.msgs_to_tx) MB3_LOG_NICE("[CAN] * msgs_to_tx: %d", status.msgs_to_tx);
-                if (status.msgs_to_rx) MB3_LOG_NICE("[CAN] * msgs_to_rx: %d", status.msgs_to_rx);
-                if (status.tx_error_counter) MB3_LOG_NICE("[CAN] * tx_error_counter: %d", status.tx_error_counter);
-                if (status.rx_error_counter) MB3_LOG_NICE("[CAN] * rx_error_counter: %d", status.rx_error_counter);
-                if (status.tx_failed_count) MB3_LOG_NICE("[CAN] * tx_failed_count: %d", status.tx_failed_count);
-                if (status.rx_missed_count) MB3_LOG_NICE("[CAN] * rx_missed_count: %d", status.rx_missed_count);
-                if (status.rx_overrun_count) MB3_LOG_NICE("[CAN] * rx_overrun_count: %d", status.rx_overrun_count);
-                if (status.arb_lost_count) MB3_LOG_NICE("[CAN] * arb_lost_count: %d", status.arb_lost_count);
-                if (status.bus_error_count) MB3_LOG_NICE("[CAN] * bus_error_count: %d", status.bus_error_count);
-            } else {
-                if (r == ESP_ERR_INVALID_ARG) MB3_LOG_NICE("[CAN] Arguments are invalid");
-                if (r == ESP_ERR_INVALID_STATE) MB3_LOG_NICE("[CAN] TWAI driver is not installed");
+                
+                // Log error counters periodically for monitoring
+                if (status.tx_error_counter > 50 || status.rx_error_counter > 50) {
+                    MB3_LOG_NICE("[CAN] Error counters: TX=%d RX=%d", status.tx_error_counter, status.rx_error_counter);
+                }
+                if (status.bus_error_count > 1000) {
+                    MB3_LOG_NICE("[CAN] High bus error count: %d", status.bus_error_count);
+                }
             }
         }
 
