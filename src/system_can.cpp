@@ -147,6 +147,13 @@ void CAN::task_impl() {
             }
         }
         
+        // Natural bus recovery resets the attempt counter
+        if (alerts_triggered & TWAI_ALERT_BUS_RECOVERED) {
+            MB3_LOG_NICE("[CAN] Bus recovered naturally - resetting recovery counters");
+            recovery_attempt_count = 0;
+            consecutive_bus_errors = 0;
+        }
+
         // Track repeated BUS_ERROR alerts (WiFi interference pattern)
         if (alerts_triggered & TWAI_ALERT_BUS_ERROR) {
             consecutive_bus_errors++;
@@ -275,51 +282,22 @@ void CAN::task_impl() {
     if ((millis() - timer) > 5000) {
         timer = millis();
 
-        uint32_t alerts_triggered;
-        if (esp_err_t alert_status = twai_read_alerts(&alerts_triggered, 0); alert_status == ESP_OK) {
-            if (alerts_triggered & 0x00000001) MB3_LOG_NICE("[CAN] TWAI_ALERT_TX_IDLE");
-            if (alerts_triggered & 0x00000002) MB3_LOG_NICE("[CAN] TWAI_ALERT_TX_SUCCESS");
-            if (alerts_triggered & 0x00000004) MB3_LOG_NICE("[CAN] TWAI_ALERT_RX_DATA");
-            if (alerts_triggered & 0x00000008) MB3_LOG_NICE("[CAN] TWAI_ALERT_BELOW_ERR_WARN");
-            if (alerts_triggered & 0x00000010) MB3_LOG_NICE("[CAN] TWAI_ALERT_ERR_ACTIVE");
-            if (alerts_triggered & 0x00000020) MB3_LOG_NICE("[CAN] TWAI_ALERT_RECOVERY_IN_PROGRESS");
-            if (alerts_triggered & 0x00000040) MB3_LOG_NICE("[CAN] TWAI_ALERT_BUS_RECOVERED");
-            if (alerts_triggered & 0x00000080) MB3_LOG_NICE("[CAN] TWAI_ALERT_ARB_LOST");
-            if (alerts_triggered & 0x00000100) MB3_LOG_NICE("[CAN] TWAI_ALERT_ABOVE_ERR_WARN");
-            if (alerts_triggered & 0x00000200) MB3_LOG_NICE("[CAN] TWAI_ALERT_BUS_ERROR");
-            if (alerts_triggered & 0x00000400) MB3_LOG_NICE("[CAN] TWAI_ALERT_TX_FAILED");
-            if (alerts_triggered & 0x00000800) MB3_LOG_NICE("[CAN] TWAI_ALERT_RX_QUEUE_FULL");
-            if (alerts_triggered & 0x00001000) MB3_LOG_NICE("[CAN] TWAI_ALERT_ERR_PASS");
-            if (alerts_triggered & 0x00002000) MB3_LOG_NICE("[CAN] TWAI_ALERT_BUS_OFF");
-            if (alerts_triggered & 0x00004000) MB3_LOG_NICE("[CAN] TWAI_ALERT_RX_FIFO_OVERRUN");
-            if (alerts_triggered & 0x00008000) MB3_LOG_NICE("[CAN] TWAI_ALERT_TX_RETRIED");
-            if (alerts_triggered & 0x00010000) MB3_LOG_NICE("[CAN] TWAI_ALERT_PERIPH_RESET");
-        } else {
-            // if (alert_status == ESP_OK) MB3_LOG_NICE("[CAN] Alerts read");
-            // if (alert_status == ESP_ERR_TIMEOUT) MB3_LOG_NICE("[CAN] Timed out waiting for alerts");
-            if (alert_status == ESP_ERR_INVALID_ARG) MB3_LOG_NICE("[CAN] Arguments are invalid");
-            if (alert_status == ESP_ERR_INVALID_STATE) MB3_LOG_NICE("[CAN] TWAI driver is not installed");
-        }
-        if (alerts_triggered) {
-            twai_status_info_t status;
-            if (esp_err_t r = twai_get_status_info(&status); r == ESP_OK) {
-                // Only log state changes and critical issues, don't auto-recover here
-                // since we have immediate recovery above
-                if (status.state == TWAI_STATE_STOPPED) {
-                    MB3_LOG_NICE("[CAN] * TWAI_STATE_STOPPED (periodic check)");
-                }
-                if (status.state == TWAI_STATE_BUS_OFF) {
-                    MB3_LOG_NICE("[CAN] * TWAI_STATE_BUS_OFF (periodic check)");
-                }
-                if (status.state == TWAI_STATE_RECOVERING) MB3_LOG_NICE("[CAN] * TWAI_STATE_RECOVERING");
-                
-                // Log error counters periodically for monitoring
-                if (status.tx_error_counter > 50 || status.rx_error_counter > 50) {
-                    MB3_LOG_NICE("[CAN] Error counters: TX=%d RX=%d", status.tx_error_counter, status.rx_error_counter);
-                }
-                if (status.bus_error_count > 1000) {
-                    MB3_LOG_NICE("[CAN] High bus error count: %d", status.bus_error_count);
-                }
+        // Note: alerts were already consumed by twai_read_alerts() at the top of this function.
+        // Read status directly - no second alert read needed.
+        twai_status_info_t status;
+        if (twai_get_status_info(&status) == ESP_OK) {
+            if (status.state == TWAI_STATE_STOPPED) {
+                MB3_LOG_NICE("[CAN] * TWAI_STATE_STOPPED (periodic check)");
+            } else if (status.state == TWAI_STATE_BUS_OFF) {
+                MB3_LOG_NICE("[CAN] * TWAI_STATE_BUS_OFF (periodic check)");
+            } else if (status.state == TWAI_STATE_RECOVERING) {
+                MB3_LOG_NICE("[CAN] * TWAI_STATE_RECOVERING (periodic check)");
+            }
+            if (status.tx_error_counter > 50 || status.rx_error_counter > 50) {
+                MB3_LOG_NICE("[CAN] Error counters: TX=%d RX=%d", status.tx_error_counter, status.rx_error_counter);
+            }
+            if (status.bus_error_count > 1000) {
+                MB3_LOG_NICE("[CAN] High bus error count: %d", status.bus_error_count);
             }
         }
 
