@@ -17,9 +17,13 @@ inline void lv_vector_path_cubic_to(lv_vector_path_t *path, lv_fpoint_t p1, lv_f
     lv_vector_path_cubic_to(path, &p1, &p2, &p3);
 }
 
+// lv_vector_path_arc_to was added in LVGL 9.4.0-dev and doesn't exist in 9.3.
+// The wrapper is only referenced in commented-out code, so guard it.
+#if LVGL_VERSION_MINOR >= 4
 inline void lv_vector_path_arc_to(lv_vector_path_t * path, float radius_x, float radius_y, float rotate_angle, bool large_arc, bool clockwise, lv_fpoint_t p) {
     lv_vector_path_arc_to(path, radius_x, radius_y, rotate_angle, large_arc, clockwise, &p);
 }
+#endif
 inline void lv_vector_path_append_arc(lv_vector_path_t * path, const lv_fpoint_t & c, float radius, float start_angle, float sweep, bool pie) {
     lv_vector_path_append_arc(path, &c, radius, start_angle, sweep, pie);
 }

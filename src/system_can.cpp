@@ -16,6 +16,14 @@ static const uint32_t RECOVERY_ATTEMPTS_THRESHOLD = 5; // Trigger hard reset aft
 static uint32_t consecutive_bus_errors = 0;
 static const uint32_t BUS_ERROR_THRESHOLD = 10; // Trigger recovery after 10 consecutive BUS_ERROR alerts
 
+// Startup grace period: suppress hard resets during boot while WiFi initializes
+// WiFi RF interference during esp_wifi_init/start causes transient BUS_ERRORs that
+// should be handled with soft recovery only. After 30s, normal hard reset logic applies.
+static uint32_t startup_time_ms = 0;
+static const uint32_t STARTUP_GRACE_MS = 30000;
+static uint32_t last_startup_log_ms = 0;
+static const uint32_t STARTUP_LOG_RATE_MS = 3000; // Rate-limit startup error logs
+
 bool CAN::perform_hard_reset() {
     MB3_LOG_NICE("[CAN] *** HARD RESET: Uninstalling and reinstalling TWAI driver ***");
     
@@ -117,6 +125,8 @@ bool CAN::setup_impl() {
     }
 
     timer = millis();
+    startup_time_ms = millis();      // Grace period starts from CAN init
+    last_hard_reset_time = millis(); // Treat boot as a recent hard reset so debounce starts now
     // message.frame.identifier = 0x154;
     // message.frame.self = 1;
     // message.frame.data_length_code = 8;
@@ -131,6 +141,7 @@ void CAN::task_impl() {
     // Check for CAN alerts immediately on each task cycle for fast error recovery
     // But debounce recoveries to prevent constant cycling
     uint32_t current_time = millis();
+    bool in_startup_grace = (current_time - startup_time_ms) < STARTUP_GRACE_MS;
     uint32_t alerts_triggered;
     if (twai_read_alerts(&alerts_triggered, 0) == ESP_OK) {
         bool should_recover = false;
@@ -141,9 +152,16 @@ void CAN::task_impl() {
         if (twai_get_status_info(&status_check) == ESP_OK) {
             if ((status_check.tx_error_counter >= 255 || status_check.rx_error_counter >= 255) &&
                 (current_time - last_hard_reset_time) > HARD_RESET_DEBOUNCE_MS) {
-                MB3_LOG_NICE("[CAN] ERROR COUNTERS MAXED (TX:%d RX:%d) - triggering hard reset", status_check.tx_error_counter, status_check.rx_error_counter);
-                perform_hard_reset();
-                return;
+                if (!in_startup_grace) {
+                    MB3_LOG_NICE("[CAN] ERROR COUNTERS MAXED (TX:%d RX:%d) - triggering hard reset", status_check.tx_error_counter, status_check.rx_error_counter);
+                    perform_hard_reset();
+                    return;
+                } else {
+                    if (current_time - last_startup_log_ms > STARTUP_LOG_RATE_MS) {
+                        last_startup_log_ms = current_time;
+                        MB3_LOG_NICE("[CAN] Startup: error counters high (TX:%d RX:%d) - soft recovery only during boot", status_check.tx_error_counter, status_check.rx_error_counter);
+                    }
+                }
             }
         }
         
@@ -159,7 +177,15 @@ void CAN::task_impl() {
             consecutive_bus_errors++;
             if (consecutive_bus_errors >= BUS_ERROR_THRESHOLD && 
                 (current_time - last_recovery_time) > RECOVERY_DEBOUNCE_MS) {
-                MB3_LOG_NICE("[CAN] BUS_ERROR escalating (%d consecutive) - initiating recovery", consecutive_bus_errors);
+                if (in_startup_grace) {
+                    // Rate-limit logs during startup to avoid spam from WiFi RF interference
+                    if (current_time - last_startup_log_ms > STARTUP_LOG_RATE_MS) {
+                        last_startup_log_ms = current_time;
+                        MB3_LOG_NICE("[CAN] Startup BUS_ERROR noise (%d consecutive) - WiFi init interference, soft recovery only", consecutive_bus_errors);
+                    }
+                } else {
+                    MB3_LOG_NICE("[CAN] BUS_ERROR escalating (%d consecutive) - initiating recovery", consecutive_bus_errors);
+                }
                 should_recover = true;
                 recovery_reason = "ESCALATING_BUS_ERROR";
                 consecutive_bus_errors = 0;
@@ -187,7 +213,7 @@ void CAN::task_impl() {
             if (twai_get_status_info(&status) == ESP_OK) {
                 // For escalating BUS_ERROR from WiFi, be more aggressive - go straight to hard reset
                 if (strcmp(recovery_reason, "ESCALATING_BUS_ERROR") == 0) {
-                    if (recovery_attempt_count >= 2 && 
+                    if (!in_startup_grace && recovery_attempt_count >= 2 && 
                         (current_time - last_hard_reset_time) > HARD_RESET_DEBOUNCE_MS) {
                         MB3_LOG_NICE("[CAN] Escalating BUS_ERROR after %d soft attempts - triggering hard reset", recovery_attempt_count);
                         perform_hard_reset();
@@ -218,7 +244,7 @@ void CAN::task_impl() {
                 }
                 
                 // Check if recovery attempts are escalating - trigger hard reset if stuck
-                if (recovery_attempt_count >= RECOVERY_ATTEMPTS_THRESHOLD && 
+                if (!in_startup_grace && recovery_attempt_count >= RECOVERY_ATTEMPTS_THRESHOLD && 
                     (current_time - last_hard_reset_time) > HARD_RESET_DEBOUNCE_MS) {
                     MB3_LOG_NICE("[CAN] Recovery stuck after %d attempts, triggering hard reset", recovery_attempt_count);
                     perform_hard_reset();
