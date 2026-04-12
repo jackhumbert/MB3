@@ -24,6 +24,15 @@ static const uint32_t STARTUP_GRACE_MS = 30000;
 static uint32_t last_startup_log_ms = 0;
 static const uint32_t STARTUP_LOG_RATE_MS = 3000; // Rate-limit startup error logs
 
+// Bus idle detection: when no other nodes are active (e.g. vehicle off),
+// the controller enters error passive with no received frames.
+// Recovery is pointless in this state — just wait quietly for the bus to come alive.
+static uint32_t last_rx_time_ms = 0;
+static bool bus_idle = false;
+static const uint32_t BUS_IDLE_TIMEOUT_MS = 10000;  // 10s with no RX = idle
+static uint32_t last_idle_log_ms = 0;
+static const uint32_t IDLE_LOG_INTERVAL_MS = 60000; // Log idle status once per minute
+
 bool CAN::perform_hard_reset() {
     MB3_LOG_NICE("[CAN] *** HARD RESET: Uninstalling and reinstalling TWAI driver ***");
     
@@ -127,6 +136,7 @@ bool CAN::setup_impl() {
     timer = millis();
     startup_time_ms = millis();      // Grace period starts from CAN init
     last_hard_reset_time = millis(); // Treat boot as a recent hard reset so debounce starts now
+    last_rx_time_ms = millis();      // Assume bus might be active at start
     // message.frame.identifier = 0x154;
     // message.frame.self = 1;
     // message.frame.data_length_code = 8;
@@ -142,8 +152,36 @@ void CAN::task_impl() {
     // But debounce recoveries to prevent constant cycling
     uint32_t current_time = millis();
     bool in_startup_grace = (current_time - startup_time_ms) < STARTUP_GRACE_MS;
+
+    // Bus idle detection: if no frames received for a while, the bus has no active nodes
+    if (!bus_idle && !in_startup_grace && (current_time - last_rx_time_ms) > BUS_IDLE_TIMEOUT_MS) {
+        bus_idle = true;
+        MB3_LOG_NICE("[CAN] Bus idle - no frames received for %ds, suppressing recovery", BUS_IDLE_TIMEOUT_MS / 1000);
+        last_idle_log_ms = current_time;
+        recovery_attempt_count = 0;
+        consecutive_bus_errors = 0;
+    }
+
     uint32_t alerts_triggered;
     if (twai_read_alerts(&alerts_triggered, 0) == ESP_OK) {
+        // When bus is idle, skip all recovery logic — just consume and discard alerts
+        if (bus_idle) {
+            // Still check for bus recovery (car turned on)
+            if (alerts_triggered & TWAI_ALERT_BUS_RECOVERED) {
+                MB3_LOG_NICE("[CAN] Bus recovered from idle");
+                bus_idle = false;
+                recovery_attempt_count = 0;
+                consecutive_bus_errors = 0;
+            }
+            goto read_frames; // Skip all recovery logic
+        }
+
+        // During startup grace, WiFi RF causes a flood of BUS_ERRORs.
+        // Skip recovery logic — just consume alerts and read any frames that arrive.
+        if (in_startup_grace) {
+            goto read_frames;
+        }
+
         bool should_recover = false;
         const char* recovery_reason = nullptr;
         
@@ -253,8 +291,16 @@ void CAN::task_impl() {
         }
     }
 
+read_frames:
     while (res = twai_receive(&message.frame, 0), res == ESP_OK) {
         hasRX = true;
+        last_rx_time_ms = current_time;
+        if (bus_idle) {
+            bus_idle = false;
+            MB3_LOG_NICE("[CAN] Bus active - resuming normal operation");
+            recovery_attempt_count = 0;
+            consecutive_bus_errors = 0;
+        }
         o_status.update();
         message.timestamp = esp_timer_get_time();
         // SDCard::log_can_message(&message);
@@ -308,22 +354,33 @@ void CAN::task_impl() {
     if ((millis() - timer) > 5000) {
         timer = millis();
 
-        // Note: alerts were already consumed by twai_read_alerts() at the top of this function.
-        // Read status directly - no second alert read needed.
-        twai_status_info_t status;
-        if (twai_get_status_info(&status) == ESP_OK) {
-            if (status.state == TWAI_STATE_STOPPED) {
-                MB3_LOG_NICE("[CAN] * TWAI_STATE_STOPPED (periodic check)");
-            } else if (status.state == TWAI_STATE_BUS_OFF) {
-                MB3_LOG_NICE("[CAN] * TWAI_STATE_BUS_OFF (periodic check)");
-            } else if (status.state == TWAI_STATE_RECOVERING) {
-                MB3_LOG_NICE("[CAN] * TWAI_STATE_RECOVERING (periodic check)");
+        // When bus is idle, log minimally — once per minute
+        if (bus_idle) {
+            if ((current_time - last_idle_log_ms) >= IDLE_LOG_INTERVAL_MS) {
+                last_idle_log_ms = current_time;
+                twai_status_info_t status;
+                if (twai_get_status_info(&status) == ESP_OK) {
+                    MB3_LOG_NICE("[CAN] Bus idle (TX:%d RX:%d, errors:%d)", status.tx_error_counter, status.rx_error_counter, status.bus_error_count);
+                }
             }
-            if (status.tx_error_counter > 50 || status.rx_error_counter > 50) {
-                MB3_LOG_NICE("[CAN] Error counters: TX=%d RX=%d", status.tx_error_counter, status.rx_error_counter);
-            }
-            if (status.bus_error_count > 1000) {
-                MB3_LOG_NICE("[CAN] High bus error count: %d", status.bus_error_count);
+        } else if (!in_startup_grace) {
+            // Note: alerts were already consumed by twai_read_alerts() at the top of this function.
+            // Read status directly - no second alert read needed.
+            twai_status_info_t status;
+            if (twai_get_status_info(&status) == ESP_OK) {
+                if (status.state == TWAI_STATE_STOPPED) {
+                    MB3_LOG_NICE("[CAN] * TWAI_STATE_STOPPED (periodic check)");
+                } else if (status.state == TWAI_STATE_BUS_OFF) {
+                    MB3_LOG_NICE("[CAN] * TWAI_STATE_BUS_OFF (periodic check)");
+                } else if (status.state == TWAI_STATE_RECOVERING) {
+                    MB3_LOG_NICE("[CAN] * TWAI_STATE_RECOVERING (periodic check)");
+                }
+                if (status.tx_error_counter > 50 || status.rx_error_counter > 50) {
+                    MB3_LOG_NICE("[CAN] Error counters: TX=%d RX=%d", status.tx_error_counter, status.rx_error_counter);
+                }
+                if (status.bus_error_count > 1000) {
+                    MB3_LOG_NICE("[CAN] High bus error count: %d", status.bus_error_count);
+                }
             }
         }
 
